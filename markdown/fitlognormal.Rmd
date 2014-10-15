@@ -1,0 +1,129 @@
+---
+title: "Fit Income Distribution from Gini"
+author: "Ben Mazzotta"
+date: "Wednesday, October 15, 2014"
+output: 
+  html_document:
+    theme: cerulean
+---
+
+## Overview
+
+Personal income data can be fit most accurately to a lognormal distribution of income, when calibrating to the Gini coefficient on income (Eric Kemp-Benedict 2001). The evidence for this is quantile regression of the Lorenz curve that generates the Gini coefficient, when compared to similar analysis for the gamma, Pareto and beta distributions. The lognormal distribution has a distinct advantage over polynomial distributions in that it is characterized by just two parameters, $\mu$ and $\sigma$.
+
+
+
+```{r prelims, echo=FALSE, warning=TRUE, results='hide'}
+require(data.table); require(plyr); require(ggplot2)
+setwd("../data")
+load("current.Rdata")
+```
+
+## Model
+
+Kemp-Benedict (2001:7) shows that the Gini index depends only on the parameter $\sigma$ of the lognormal distribution.
+
+$$ g = 2N \frac{\sigma}{\sqrt 2} -1  = \sqrt 2 N \sigma $$ 
+
+... where N is the cumulative standard normal distribution. Inverting, we obtain:
+
+$$ \sigma =  \frac{g+1}{\sqrt 2 N} $$
+
+## By hand
+
+This method of validating the $g = f(\sigma)$ Gini-sigma function did not work well. It yielded plausible estimates in the middle of the distribution but not for extreme values. 
+
+```{r lognormal}
+set.seed(4925)
+## For g==".55"
+toy <- rlnorm(10^4, 0, (sqrt(2) * 1.55/2))
+summary(toy)
+toy <- toy[order(toy)]
+utopia <- seq(0, sum(toy), length.out=length(toy))
+toy.df <- data.frame(toy, cumsum(toy), utopia)
+
+head(toy.df)
+qplot(utopia, cumsum.toy., data=toy.df) + geom_abline(a=0, b=1)  + 
+  labs(title="Lorenz curve and utopia line for modeled income data", xlab="In Utopia everyone has identical income.",ylab="Income modeled from a lognormal distribution calculated from Gini=0.34")
+
+toy.df$diff <- toy.df$utopia - toy.df$cumsum.toy.
+
+cat("This model predicts a Gini coefficient of ", mean(toy.df$diff)/nrow(toy.df)," using the function rnorm() and the Kemp-Benedict formula for calculating sigma from Gini.")
+
+summary(toy.df)
+```
+
+## Quantile estimation
+
+The procedure above transforms the Gini coefficient into the $\sigma$ parameter of a lognormal distribution.
+
+R provides built-in functions for estimating quantiles of  lognormal distribution with known parameters $\mu$ and $\sigma$. 
+
+Consequently, if we are given the share of the population that are financially excluded, $p$, the average income, and the Gini coefficient, we can derive both the $\mu$ and $\sigma$ parameters of the income distribution. Together these are sufficient to determine the share of national income available to the financially excluded. From the saving rate, we can derive an upper bound on the amount lost to cash hoards.
+
+Let's assume that the Kemp-Benedict formula is correct. Based on that ... 
+
+```{r giniquantiles, fig.height=8, fig.width=4.5}
+## Calculate mean and variance
+##        Sufficient to model the distribution
+inc2010[,mu:=inccap]
+inc2010[,sigma:=(gini+1)/sqrt(2)]
+
+## What are some percentiles worth knowing? 
+inc2010[,p20 :=.20]  ## 20th percentile
+inc2010[,psav := 1- savers/100]  ## financially excluded
+
+## How much income is available to bottom quintile? 
+##                          ... to financially excluded?
+inc2010[,inc.p20 := qlnorm(p20, meanlog=mu, sdlog=sigma)]
+inc2010[,inc.psav := qlnorm(psav, meanlog=mu, sdlog=sigma)]
+
+##      As a share of income:
+inc2010[,incshare.p20 := inc.p20/income]
+inc2010[,incshare.psav := inc.psav/income]
+
+save(inc2010, file="modeled saving of finexcl.Rda")
+str(inc2010); summary(inc2010)
+```
+
+Test the results.
+
+```{r test.gini.quintiles, fig.width=8, fig.height=4.5}
+## Didn't happen today. 
+```
+
+
+
+## Data
+
+This is a dataset that uses sloppy averaging from World Development Indicators for proof of concept (world Bank 2014). 
+
+Var | Data | Notes
+--- | --- | ---
+iso2c | 2-letter abbreviation | Provided by the Bank, supposedly ISO format.
+country | Country name | 
+year | Year | Grossly inaccurate!
+income | National income | Current US$
+incap | Per capita income | Current US$
+gini | Gini index | A pure number on the (0,1 interval)
+saving | National saving  | Current US$
+savrate | Saving rate | Percent of GNI
+
+Here is the international data file to be fit using Gini coefficients.
+
+```{r, echo=FALSE}
+str(inc.dt)
+summary(inc.dt)
+```
+
+$\square$
+
+## Bibliography
+
+Eric Kemp-Benedict. 2001. Income Distribution and Poverty Data: Methods for Using Available Data in Global Analysis. Polestar Technical Note No. 4.
+
+World Bank. 2014. World Development Indicators.
+
+
+---
+Ben Mazzotta is a postdoc at IBGC.
