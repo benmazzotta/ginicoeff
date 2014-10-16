@@ -23,11 +23,19 @@ load("current.Rdata")
 
 Kemp-Benedict (2001:7) shows that the Gini index depends only on the parameter $\sigma$ of the lognormal distribution.
 
-$$ g = 2N \frac{\sigma}{\sqrt 2} -1  = \sqrt 2 N \sigma $$ 
+$$ g = 2 \Phi \left(  \frac{\sigma}{\sqrt 2} \right) -1 $$ 
 
-... where N is the cumulative standard normal distribution. Inverting, we obtain:
+... where $\Phi$  is the cumulative standard normal distribution. If we knew the value of $\sigma$, we could write the following code.
 
-$$ \sigma =  \frac{g+1}{\sqrt 2 N} $$
+`g <- 2 * dnorm(sigma/sqrt(2)) - 1`
+
+And hence to calculate $\sigma$ from a known Gini coefficient, we would invert as follows.
+
+$$ \sigma = \sqrt{2} \Phi^{-1} \left( \frac{g+1}{2} \right) $$ 
+
+The corresponding R code is:
+
+`sigma = sqrt(2) * qnorm( (g+1)/2 )`
 
 ## By hand
 
@@ -35,8 +43,10 @@ This method of validating the $g = f(\sigma)$ Gini-sigma function did not work w
 
 ```{r lognormal}
 set.seed(4925)
-## For g==".55"
-toy <- rlnorm(10^4, 0, (sqrt(2) * 1.55/2))
+## For g==".35"
+t.gini <- .35; t.sigma <- sqrt(2)*qnorm((t.gini+1)/2)
+t.gini; t.sigma; log(t.sigma)
+toy <- rlnorm(10^4, 0, t.sigma)
 summary(toy)
 toy <- toy[order(toy)]
 utopia <- seq(0, sum(toy), length.out=length(toy))
@@ -67,30 +77,30 @@ Let's assume that the Kemp-Benedict formula is correct. Based on that ...
 ## Calculate mean and variance
 ##        Sufficient to model the distribution
 inc2010[,mu:=inccap]
-inc2010[,sigma:=(gini+1)/sqrt(2)]
+inc2010[,sigma:=sqrt(2)*qnorm((gini/100+1)/2)]
 
 ## What are some percentiles worth knowing? 
 inc2010[,p20 :=.20]  ## 20th percentile
 inc2010[,psav := 1- savers/100]  ## financially excluded
 
-## How much income is available to bottom quintile? 
-##                          ... to financially excluded?
-inc2010[,inc.p20 := qlnorm(p20, meanlog=mu, sdlog=sigma)]
-inc2010[,inc.psav := qlnorm(psav, meanlog=mu, sdlog=sigma)]
+## What is the per capita income cutoff for the bottom quintile? 
+##                          ... for financially excluded?
+inc2010[,inc.p20 := qlnorm(p20, meanlog=log(mu), sdlog=sigma)]
+inc2010[,inc.psav := qlnorm(psav, meanlog=log(mu), sdlog=sigma)]
 
-##      As a share of income:
-inc2010[,incshare.p20 := inc.p20/income]
-inc2010[,incshare.psav := inc.psav/income]
+##      Cutoffs a multiple of per capita income:
+inc2010[,incmult.p20 := inc.p20/inccap]
+inc2010[,incmult.psav := inc.psav/inccap]
+
+##      Cumulative share of per capita income:
+inc2010[,incshare.p20 := dlnorm(p20, meanlog=log(mu), sdlog=log(sigma))]
+inc2010[,incshare.psav := dlnorm(psav, meanlog=log(mu), sdlog=log(sigma))]
 
 save(inc2010, file="modeled saving of finexcl.Rda")
+inc2010 <- subset(inc2010, !is.na(gini))
 str(inc2010); summary(inc2010)
 ```
 
-Test the results.
-
-```{r test.gini.quintiles, fig.width=8, fig.height=4.5}
-## Didn't happen today. 
-```
 
 
 
