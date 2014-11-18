@@ -37,61 +37,50 @@ The corresponding R code is:
 
 `sigma = sqrt(2) * qnorm( (g+1)/2 )`
 
+But since our distribution is not normalized, we need to remember to scale everything to $\mu$.
+
+$$ \sigma = \sqrt{2} \mu \Phi^{-1} \left( \frac{g+1}{2} \right) $$ 
+
+`sigma = sqrt(2) * mu * qnorm( (g+1)/2 )`
 
 
-## Parameters
 
-The scale and location parameters of the lognormal distribution are $\mu$ and $\sigma$. From Kemp above we can calculate $\sigma$.
+## By hand
 
-We also know that average income is a function of  $\mu$ and $\sigma$. So inverting, we can derive:
+Several reasons you can't do it this way.
 
-$$E(I) = \exp{\mu + \frac{\sigma^2}{2}}$$
+1. The parameter $\mu$ is not equal to the expected value of the distribution or any sample.
+2. Knowing GDPcap doesn't tell you the parameter $\mu$ of the lognormal.
+3. The expected value of a sample is not the expected value of the entire distribution due to skewness. Larger samples have higher arithmetic means.
 
-$$ \mu = log(E(I)) - \frac{\simga^2}{2}$$
 
-And hence the procedure should be to calculate:
+This method of validating the $g = f(\sigma)$ Gini-sigma function did not work well. It yielded plausible estimates in the middle of the distribution but not for extreme values. 
 
-1. Sigma from Gini coefficient
-2. Mu from GNI/capita and sigma
-3. Quantiles from known distribution I = f(mu, sigma; X).
+```{r lognormal}
+set.seed(4925)
+## For g==".35" and GDPCAP=5000
+#     Set simulated gini value, simulated sigma value.
+t.gini <- .35; t.sigma <- sqrt(2) * 5000 * qnorm((t.gini+1)/2)
+t.gini; t.sigma; log(t.sigma)
+Nobs = 10^2
+#     Draw a dataset of 10^4 observations from that distribution
+toy <- rlnorm(Nobs, log(5000), log(t.sigma))
+summary(toy)
+toy <- toy[order(toy)]
+#     Create a cumulative sum of identical observations for utopia
+utopia <- seq(0, sum(toy), length.out=Nobs)
+toy.df <- data.frame(toy, cumsum(toy), utopia)
 
-```{r fitdistr}
-inc <- inc2010[!is.na(gini),]
+head(toy.df)
+qplot(utopia, cumsum.toy., data=toy.df) + geom_abline(a=0, b=1)  + 
+  labs(list(title="Lorenz curve and utopia line for modeled income data", x="In Utopia everyone has identical income.",y="Income modeled from a lognormal distribution\n calculated from Gini = 0.35"))
 
-##      Step 1: calculate sigma from Gini coefficient. 
-##          (BDM: is this possible w/o scale parameter?)
-inc[,sigma:= sqrt(2)*qnorm((gini/100+1)/2)]
-summary(inc)
-##      Step 2: calculate mu from sigma and mean
-inc[,mu:=log(inccap)-(sigma^2/2)]
-summary(inc)
-##      Step 3: Read quantiles from mu and sigma
-inc[,p20:=qlnorm(.20, mu, sigma)]
-inc[,psav:=qlnorm(1-savers/100, mu, sigma)]
+toy.df$diff <- toy.df$utopia - toy.df$cumsum.toy.
 
-summary(inc)
-summary(1-inc$savers/100)
+cat("This model predicts a Gini coefficient of ", mean(toy.df$diff)/nrow(toy.df)," using the function rnorm() and the Kemp-Benedict formula for calculating sigma from Gini.")
+
+summary(toy.df)
 ```
-
-
-So the object `inc` in memory has accurate parameters for the lognormal distribution of per capita income in memory.
-
-It also has the 20th percentile of per capita income, and the nth percentile of per capita income, where $n$ corresponds to the share of the population that do not save at a formal financial institution.
-
-Are these estimates plausible?
-
-```{r plotincome, fig.width=8, fig.height=4.5}
-## Plot p20 vs income per capita.
-##      Has to be all below 45 degree line
-qplot(inccap, p20, data=inc, geom="point")+geom_abline(intercept=0,slope=1)
-
-## Plot psavers vs income per capita.
-##      Rich countries below the line, poor countries above
-qplot(inccap, psav, data=inc, geom="point")+geom_abline(intercept=0,slope=1)
-
-
-```
-
 
 ## Quantile estimation
 
