@@ -2,10 +2,12 @@
 title: "Fit Income Distribution from Gini"
 author: "Ben Mazzotta"
 date: "Wednesday, October 15, 2014"
-output: 
-  html_document:
-    theme: cerulean
+output:   pdf_document
+header-includes:
+      - \usepackage{times}
+      - \usepackage{euler}
 ---
+
 
 ## Overview
 
@@ -13,7 +15,7 @@ Personal income data can be fit most accurately to a lognormal distribution of i
 
 
 
-```{r prelims, echo=FALSE, warning=TRUE, results='hide'}
+```{r prelims, results='hide'}
 require(data.table); require(plyr); require(ggplot2)
 setwd("../data")
 load("current.Rdata")
@@ -47,7 +49,7 @@ We also know that average income is a function of  $\mu$ and $\sigma$. So invert
 
 $$E(I) = \exp{\mu + \frac{\sigma^2}{2}}$$
 
-$$ \mu = log(E(I)) - \frac{\simga^2}{2}$$
+$$ \mu = log(E(I)) - \frac{\sigma^2}{2}$$
 
 And hence the procedure should be to calculate:
 
@@ -57,6 +59,7 @@ And hence the procedure should be to calculate:
 
 ```{r fitdistr}
 inc <- inc2010[!is.na(gini),]
+setkey(inc, iso2c, country, year)
 
 ##      Step 1: calculate sigma from Gini coefficient. 
 ##          (BDM: is this possible w/o scale parameter?)
@@ -69,6 +72,7 @@ summary(inc)
 inc[,p20:=qlnorm(.20, mu, sigma)]
 inc[,psav:=qlnorm(1-savers/100, mu, sigma)]
 
+options(digits=4)
 summary(inc)
 summary(1-inc$savers/100)
 ```
@@ -83,56 +87,111 @@ Are these estimates plausible?
 ```{r plotincome, fig.width=8, fig.height=4.5}
 ## Plot p20 vs income per capita.
 ##      Has to be all below 45 degree line
-qplot(inccap, p20, data=inc, geom="point")+geom_abline(intercept=0,slope=1)
+qplot(inccap, p20, data=inc, geom="point", log="xy")+geom_abline(intercept=0,slope=1)+
+  labs(list(title="Income levels: bottom quintile vs. average", x="Income per capita, USD at PPP", y="Income cutoff at the bottom quintile"))
 
 ## Plot psavers vs income per capita.
 ##      Rich countries below the line, poor countries above
-qplot(inccap, psav, data=inc, geom="point")+geom_abline(intercept=0,slope=1)
+qplot(inccap, psav, data=inc, geom="point", log="xy")+geom_abline(intercept=0,slope=1)+
+  labs(list(title="Income levels: financially excluded proportion vs. average", x="Income per capita, USD at PPP", y="Income cutoff among financially excluded"))
 
 
 ```
 
 
-## Quantile estimation
+## Simulate distributions
 
-The procedure above transforms the Gini coefficient into the $\sigma$ parameter of a lognormal distribution.
+Now let's take the distribution parameters mu and sigma for each country. Using a large-enough population, simulate the share of income accruing to the bottom quintile of the distribution.
 
-R provides built-in functions for estimating quantiles of  lognormal distribution with known parameters $\mu$ and $\sigma$. 
+```{r simulateincome}
+# inc.siminput <- inc[,.SD, .SDcols=c("mu","sigma")]
 
-Consequently, if we are given the share of the population that are financially excluded, $p$, the average income, and the Gini coefficient, we can derive both the $\mu$ and $\sigma$ parameters of the income distribution. Together these are sufficient to determine the share of national income available to the financially excluded. From the saving rate, we can derive an upper bound on the amount lost to cash hoards.
+## Make a list of simulated income data
+##      Each of length 10^6, using the observed values of mu and sigma
+sim <- mapply(rlnorm, rep(1e6, nrow(inc)), inc$mu, inc$sigma)
+##      It's very large.
+dim(sim)
+object.size(sim)/1e6
+##      It took several seconds to compute the summary statistics.
+# summary(sim)
+sim <- data.table(sim)
 
-Let's assume that the Kemp-Benedict formula is correct. Based on that ... 
+sim.sums <- colSums(sim)
 
-```{r giniquantiles, fig.height=8, fig.width=4.5}
-## Calculate mean and variance
-##        Sufficient to model the distribution
-inc2010[,mu:=inccap]
-inc2010[,sigma:=sqrt(2)*qnorm((gini/100+1)/2)]
+str(inc$p20)
+head(inc$p20)
 
-## What are some percentiles worth knowing? 
-inc2010[,p20 :=.20]  ## 20th percentile
-inc2010[,psav := 1- savers/100]  ## financially excluded
+# ##    How to use data.table to get fast sums of subsets?
+# sim[V1<235,sum(V1)]
+# ## You can run this code to get the sum of bottom quintile values in a single column
+# myvar <- "V1"
+# sim[get(myvar)<234.4945, sum(.SD), .SDcols=myvar]
+# # Can I rewrite so that only number 1 is an input?
+# sim[get(paste("V",1,sep=""))<inc$p20[1], sum(.SD), .SDcols=paste("V",1,sep="")]
 
-## What is the per capita income cutoff for the bottom quintile? 
-##                          ... for financially excluded?
-inc2010[,inc.p20 := qlnorm(p20, meanlog=log(mu), sdlog=log(sigma))]
-inc2010[,inc.psav := qlnorm(psav, meanlog=log(mu), sdlog=log(sigma))]
+## Write a function to do this.
+calc.p20sum <- function(x) sim[get(paste("V",x,sep=""))<inc$p20[x], sum(.SD), .SDcols=paste("V",x,sep="")]
 
-##      Cutoffs a multiple of per capita income:
-inc2010[,incmult.p20 := inc.p20/inccap]
-inc2010[,incmult.psav := inc.psav/inccap]
+# Does it still work? Yes. :)
+calc.p20sum(1)
 
-##      Cumulative share of per capita income:
-inc2010[,incshare.p20 := dlnorm(p20, meanlog=log(mu), sdlog=log(sigma))]
-inc2010[,incshare.psav := dlnorm(psav, meanlog=log(mu), sdlog=log(sigma))]
+sim.sump20 <- sapply(c(1:length(inc$p20)), calc.p20sum)
+summary(sim.sump20)
 
-save(inc2010, file="modeled saving of finexcl.Rda")
-inc2010 <- subset(inc2010, !is.na(gini))
-str(inc2010); summary(inc2010)
+sim.p20share <- sim.sump20/sim.sums
+sim.p20share *100
+
+## And to do the same thing for the proportion saving:
+  
+## This function returns the gross income beneath the nth percentile of income,
+##      Where n is the percentage of those that do not save.
+calc.finexsum <- function(x) sim[get(paste("V",x,sep=""))<inc$psav[x], sum(.SD), .SDcols=paste("V",x,sep="")]
+
+# Does it still work? Yes. :)
+calc.finexsum(1)
+# calc.finexsum(17)
+
+# inc$psav
+
+## Running the same command as above threw an error
+##      Not all the psav observations are defined.
+##      Need to substitute something when undefined.....
+sim.sumfinex <- sapply(which(!is.na(inc$psav)), calc.finexsum)
+summary(sim.sumfinex)
+
+sim.finexshare <- rep(NA, nrow(inc))
+sim.finexshare[which(!is.na(inc$psav))] <- sim.sumfinex / sim.sums[which(!is.na(inc$psav))]
+
+# options(digits=3)
+sim.finexshare*100
+
+gini.dt <- inc
+gini.dt[,bottom20share <- sim.p20share]
+gini.dt[,finexshare <- sim.finexshare]
+
+save(gini.dt, file="../data/income share of financially excluded.Rda")
+rm(sim)
+save.image("../data/working.Rdata")
+
+
 ```
 
 
 
+
+## The lognormal distribution
+
+Key features of the lognormal distribution
+
+$$ X \sim lornorm(\mu, \sigma) $$ 
+
+$$ E(X) = exp(\mu + \frac{\sigma^2}{2}) = e ^{\mu + \frac{\sigma^2}{2}} $$
+
+$$ X_{median} = e^{\mu} $$
+
+And hence we can calculate from average income per capita:
+
+$$ \mu = ln(inccap) - \frac{\sigma^2}{2}$$
 
 ## Data
 
@@ -147,13 +206,14 @@ income | National income | Current US$
 incap | Per capita income | Current US$
 gini | Gini index | A pure number on the (0,1 interval)
 saving | National saving  | Current US$
-savrate | Saving rate | Percent of GNI
+savingrate | Saving rate | Percent of GNI
+savers | Currently save with a bank | Percent of population
 
-Here is the international data file to be fit using Gini coefficients.
+This is a summary of the most recent data available.
 
 ```{r, echo=FALSE}
-str(inc.dt)
-summary(inc.dt)
+str(inc2010)
+summary(inc2010)
 ```
 
 $\square$
@@ -166,4 +226,4 @@ World Bank. 2014. World Development Indicators.
 
 
 ---
-Ben Mazzotta is a postdoc at IBGC.
+\footnotesize Ben Mazzotta is a postdoc investigating the [Cost of Cash](http://fletcher.tufts.edu/costofcash) at the [Institute for Business in the Global Context](http://fletcher.tufts.edu/ibgc) (IBGC). Contact: [benjamin.mazzotta@tufts.edu](mailto:benjamin.mazzotta@tufts.edu) \quad +1.617.627.4561 \quad 160 Packard Ave, Medford MA 02155. \par

@@ -75,62 +75,330 @@ if (window.hljs && document.readyState && document.readyState === "complete") {
 <p><span class="math">\[ \sigma = \sqrt{2} \Phi^{-1} \left( \frac{g+1}{2} \right) \]</span></p>
 <p>The corresponding R code is:</p>
 <p><code>sigma = sqrt(2) * qnorm( (g+1)/2 )</code></p>
-<p>But since our distribution is not normalized, we need to remember to scale everything to <span class="math">\(\mu\)</span>.</p>
-<p><span class="math">\[ \sigma = \sqrt{2} \mu \Phi^{-1} \left( \frac{g+1}{2} \right) \]</span></p>
-<p><code>sigma = sqrt(2) * mu * qnorm( (g+1)/2 )</code></p>
 </div>
-<div id="by-hand" class="section level2">
-<h2>By hand</h2>
-<p>This method of validating the <span class="math">\(g = f(\sigma)\)</span> Gini-sigma function did not work well. It yielded plausible estimates in the middle of the distribution but not for extreme values.</p>
-<pre class="r"><code>set.seed(4925)
-## For g==&quot;.35&quot; and GDPCAP=5000
-#     Set simulated gini value, simulated sigma value.
-t.gini &lt;- .35; t.sigma &lt;- sqrt(2) * 5000 * qnorm((t.gini+1)/2)
-t.gini; t.sigma; log(t.sigma)</code></pre>
-<pre><code>## [1] 0.35</code></pre>
-<pre><code>## [1] 3209</code></pre>
-<pre><code>## [1] 8.074</code></pre>
-<pre class="r"><code>Nobs = 10^2
-#     Draw a dataset of 10^4 observations from that distribution
-toy &lt;- rlnorm(Nobs, log(5000), log(t.sigma))
-summary(toy)</code></pre>
+<div id="parameters" class="section level2">
+<h2>Parameters</h2>
+<p>The scale and location parameters of the lognormal distribution are <span class="math">\(\mu\)</span> and <span class="math">\(\sigma\)</span>. From Kemp above we can calculate <span class="math">\(\sigma\)</span>.</p>
+<p>We also know that average income is a function of <span class="math">\(\mu\)</span> and <span class="math">\(\sigma\)</span>. So inverting, we can derive:</p>
+<p><span class="math">\[E(I) = \exp{\mu + \frac{\sigma^2}{2}}\]</span></p>
+<p><span class="math">\[ \mu = log(E(I)) - \frac{\sigma^2}{2}\]</span></p>
+<p>And hence the procedure should be to calculate:</p>
+<ol style="list-style-type: decimal">
+<li>Sigma from Gini coefficient</li>
+<li>Mu from GNI/capita and sigma</li>
+<li>Quantiles from known distribution I = f(mu, sigma; X).</li>
+</ol>
+<pre class="r"><code>inc &lt;- inc2010[!is.na(gini),]
+
+##      Step 1: calculate sigma from Gini coefficient. 
+##          (BDM: is this possible w/o scale parameter?)
+inc[,sigma:= sqrt(2)*qnorm((gini/100+1)/2)]</code></pre>
+<pre><code>##      iso2c       country year    income inccap  gini     saving savrate
+##   1:    AF   Afghanistan 2010 6.286e+09  406.7 27.82 -2.347e+09 -14.930
+##   2:    AL       Albania 2010 8.991e+09 3012.3 31.15  1.588e+09  18.167
+##   3:    AM       Armenia 2010 5.215e+09 2123.8 33.52  1.404e+09  19.525
+##   4:    AO        Angola 2010 2.981e+10 2179.2 50.65  1.067e+10  21.644
+##   5:    AR     Argentina 2010 1.602e+11 5748.6 49.00  1.031e+10   5.547
+##  ---                                                                   
+## 134:    VE Venezuela, RB 2010 1.528e+11 7208.5 47.68  6.879e+10  33.084
+## 135:    VN       Vietnam 2010 6.072e+10  846.9 36.26  2.316e+10  30.283
+## 136:    YE   Yemen, Rep. 2010 1.514e+10  850.8 35.91  2.990e+09  25.828
+## 137:    ZA  South Africa 2010 2.504e+11 4810.8 63.33  3.804e+10  15.693
+## 138:    ZM        Zambia 2010 7.361e+09  715.4 51.23  2.157e+09  17.171
+##       savers  sigma
+##   1:  2.8194 0.5035
+##   2:  8.5616 0.5669
+##   3:  0.8191 0.6127
+##   4: 15.9156 0.9684
+##   5:  3.8007 0.9317
+##  ---               
+## 134: 13.5693 0.9028
+## 135:  7.7408 0.6666
+## 136:  1.0740 0.6596
+## 137: 22.0800 1.2766
+## 138: 11.7659 0.9815</code></pre>
+<pre class="r"><code>summary(inc)</code></pre>
+<pre><code>##     iso2c             country               year          income        
+##  Length:138         Length:138         Min.   :2010   Min.   :1.20e+08  
+##  Class :character   Class :character   1st Qu.:2010   1st Qu.:4.74e+09  
+##  Mode  :character   Mode  :character   Median :2010   Median :1.65e+10  
+##                                        Mean   :2010   Mean   :2.45e+11  
+##                                        3rd Qu.:2010   3rd Qu.:9.99e+10  
+##                                        Max.   :2010   Max.   :1.31e+13  
+##                                                       NA's   :1         
+##      inccap           gini          saving             savrate     
+##  Min.   :  159   Min.   :25.0   Min.   :-2.35e+09   Min.   :-14.9  
+##  1st Qu.:  787   1st Qu.:33.8   1st Qu.: 1.13e+09   1st Qu.: 15.3  
+##  Median : 2261   Median :39.3   Median : 4.17e+09   Median : 19.9  
+##  Mean   : 7391   Mean   :40.5   Mean   : 6.71e+10   Mean   : 21.4  
+##  3rd Qu.: 5907   3rd Qu.:45.9   3rd Qu.: 3.24e+10   3rd Qu.: 25.3  
+##  Max.   :66520   Max.   :64.3   Max.   : 2.28e+12   Max.   : 76.2  
+##                                 NA's   :8           NA's   :8      
+##      savers          sigma      
+##  Min.   : 0.29   Min.   :0.451  
+##  1st Qu.: 5.42   1st Qu.:0.619  
+##  Median :10.82   Median :0.727  
+##  Mean   :15.12   Mean   :0.759  
+##  3rd Qu.:19.03   3rd Qu.:0.864  
+##  Max.   :63.58   Max.   :1.303  
+##  NA's   :16</code></pre>
+<pre class="r"><code>##      Step 2: calculate mu from sigma and mean
+inc[,mu:=log(inccap)-(sigma^2/2)]</code></pre>
+<pre><code>##      iso2c       country year    income inccap  gini     saving savrate
+##   1:    AF   Afghanistan 2010 6.286e+09  406.7 27.82 -2.347e+09 -14.930
+##   2:    AL       Albania 2010 8.991e+09 3012.3 31.15  1.588e+09  18.167
+##   3:    AM       Armenia 2010 5.215e+09 2123.8 33.52  1.404e+09  19.525
+##   4:    AO        Angola 2010 2.981e+10 2179.2 50.65  1.067e+10  21.644
+##   5:    AR     Argentina 2010 1.602e+11 5748.6 49.00  1.031e+10   5.547
+##  ---                                                                   
+## 134:    VE Venezuela, RB 2010 1.528e+11 7208.5 47.68  6.879e+10  33.084
+## 135:    VN       Vietnam 2010 6.072e+10  846.9 36.26  2.316e+10  30.283
+## 136:    YE   Yemen, Rep. 2010 1.514e+10  850.8 35.91  2.990e+09  25.828
+## 137:    ZA  South Africa 2010 2.504e+11 4810.8 63.33  3.804e+10  15.693
+## 138:    ZM        Zambia 2010 7.361e+09  715.4 51.23  2.157e+09  17.171
+##       savers  sigma    mu
+##   1:  2.8194 0.5035 5.881
+##   2:  8.5616 0.5669 7.850
+##   3:  0.8191 0.6127 7.473
+##   4: 15.9156 0.9684 7.218
+##   5:  3.8007 0.9317 8.223
+##  ---                     
+## 134: 13.5693 0.9028 8.475
+## 135:  7.7408 0.6666 6.519
+## 136:  1.0740 0.6596 6.529
+## 137: 22.0800 1.2766 7.664
+## 138: 11.7659 0.9815 6.091</code></pre>
+<pre class="r"><code>summary(inc)</code></pre>
+<pre><code>##     iso2c             country               year          income        
+##  Length:138         Length:138         Min.   :2010   Min.   :1.20e+08  
+##  Class :character   Class :character   1st Qu.:2010   1st Qu.:4.74e+09  
+##  Mode  :character   Mode  :character   Median :2010   Median :1.65e+10  
+##                                        Mean   :2010   Mean   :2.45e+11  
+##                                        3rd Qu.:2010   3rd Qu.:9.99e+10  
+##                                        Max.   :2010   Max.   :1.31e+13  
+##                                                       NA's   :1         
+##      inccap           gini          saving             savrate     
+##  Min.   :  159   Min.   :25.0   Min.   :-2.35e+09   Min.   :-14.9  
+##  1st Qu.:  787   1st Qu.:33.8   1st Qu.: 1.13e+09   1st Qu.: 15.3  
+##  Median : 2261   Median :39.3   Median : 4.17e+09   Median : 19.9  
+##  Mean   : 7391   Mean   :40.5   Mean   : 6.71e+10   Mean   : 21.4  
+##  3rd Qu.: 5907   3rd Qu.:45.9   3rd Qu.: 3.24e+10   3rd Qu.: 25.3  
+##  Max.   :66520   Max.   :64.3   Max.   : 2.28e+12   Max.   : 76.2  
+##                                 NA's   :8           NA's   :8      
+##      savers          sigma             mu       
+##  Min.   : 0.29   Min.   :0.451   Min.   : 4.89  
+##  1st Qu.: 5.42   1st Qu.:0.619   1st Qu.: 6.38  
+##  Median :10.82   Median :0.727   Median : 7.39  
+##  Mean   :15.12   Mean   :0.759   Mean   : 7.49  
+##  3rd Qu.:19.03   3rd Qu.:0.864   3rd Qu.: 8.38  
+##  Max.   :63.58   Max.   :1.303   Max.   :11.00  
+##  NA's   :16</code></pre>
+<pre class="r"><code>##      Step 3: Read quantiles from mu and sigma
+inc[,p20:=qlnorm(.20, mu, sigma)]</code></pre>
+<pre><code>##      iso2c       country year    income inccap  gini     saving savrate
+##   1:    AF   Afghanistan 2010 6.286e+09  406.7 27.82 -2.347e+09 -14.930
+##   2:    AL       Albania 2010 8.991e+09 3012.3 31.15  1.588e+09  18.167
+##   3:    AM       Armenia 2010 5.215e+09 2123.8 33.52  1.404e+09  19.525
+##   4:    AO        Angola 2010 2.981e+10 2179.2 50.65  1.067e+10  21.644
+##   5:    AR     Argentina 2010 1.602e+11 5748.6 49.00  1.031e+10   5.547
+##  ---                                                                   
+## 134:    VE Venezuela, RB 2010 1.528e+11 7208.5 47.68  6.879e+10  33.084
+## 135:    VN       Vietnam 2010 6.072e+10  846.9 36.26  2.316e+10  30.283
+## 136:    YE   Yemen, Rep. 2010 1.514e+10  850.8 35.91  2.990e+09  25.828
+## 137:    ZA  South Africa 2010 2.504e+11 4810.8 63.33  3.804e+10  15.693
+## 138:    ZM        Zambia 2010 7.361e+09  715.4 51.23  2.157e+09  17.171
+##       savers  sigma    mu    p20
+##   1:  2.8194 0.5035 5.881  234.5
+##   2:  8.5616 0.5669 7.850 1591.8
+##   3:  0.8191 0.6127 7.473 1051.1
+##   4: 15.9156 0.9684 7.218  603.5
+##   5:  3.8007 0.9317 8.223 1700.3
+##  ---                            
+## 134: 13.5693 0.9028 8.475 2243.1
+## 135:  7.7408 0.6666 6.519  387.0
+## 136:  1.0740 0.6596 6.529  392.8
+## 137: 22.0800 1.2766 7.664  727.2
+## 138: 11.7659 0.9815 6.091  193.5</code></pre>
+<pre class="r"><code>inc[,psav:=qlnorm(1-savers/100, mu, sigma)]</code></pre>
+<pre><code>##      iso2c       country year    income inccap  gini     saving savrate
+##   1:    AF   Afghanistan 2010 6.286e+09  406.7 27.82 -2.347e+09 -14.930
+##   2:    AL       Albania 2010 8.991e+09 3012.3 31.15  1.588e+09  18.167
+##   3:    AM       Armenia 2010 5.215e+09 2123.8 33.52  1.404e+09  19.525
+##   4:    AO        Angola 2010 2.981e+10 2179.2 50.65  1.067e+10  21.644
+##   5:    AR     Argentina 2010 1.602e+11 5748.6 49.00  1.031e+10   5.547
+##  ---                                                                   
+## 134:    VE Venezuela, RB 2010 1.528e+11 7208.5 47.68  6.879e+10  33.084
+## 135:    VN       Vietnam 2010 6.072e+10  846.9 36.26  2.316e+10  30.283
+## 136:    YE   Yemen, Rep. 2010 1.514e+10  850.8 35.91  2.990e+09  25.828
+## 137:    ZA  South Africa 2010 2.504e+11 4810.8 63.33  3.804e+10  15.693
+## 138:    ZM        Zambia 2010 7.361e+09  715.4 51.23  2.157e+09  17.171
+##       savers  sigma    mu    p20    psav
+##   1:  2.8194 0.5035 5.881  234.5   936.3
+##   2:  8.5616 0.5669 7.850 1591.8  5571.6
+##   3:  0.8191 0.6127 7.473 1051.1  7661.2
+##   4: 15.9156 0.9684 7.218  603.5  3584.0
+##   5:  3.8007 0.9317 8.223 1700.3 19453.7
+##  ---                                    
+## 134: 13.5693 0.9028 8.475 2243.1 12944.9
+## 135:  7.7408 0.6666 6.519  387.0  1750.7
+## 136:  1.0740 0.6596 6.529  392.8  3119.4
+## 137: 22.0800 1.2766 7.664  727.2  5687.8
+## 138: 11.7659 0.9815 6.091  193.5  1416.5</code></pre>
+<pre class="r"><code>summary(inc)</code></pre>
+<pre><code>##     iso2c             country               year          income        
+##  Length:138         Length:138         Min.   :2010   Min.   :1.20e+08  
+##  Class :character   Class :character   1st Qu.:2010   1st Qu.:4.74e+09  
+##  Mode  :character   Mode  :character   Median :2010   Median :1.65e+10  
+##                                        Mean   :2010   Mean   :2.45e+11  
+##                                        3rd Qu.:2010   3rd Qu.:9.99e+10  
+##                                        Max.   :2010   Max.   :1.31e+13  
+##                                                       NA's   :1         
+##      inccap           gini          saving             savrate     
+##  Min.   :  159   Min.   :25.0   Min.   :-2.35e+09   Min.   :-14.9  
+##  1st Qu.:  787   1st Qu.:33.8   1st Qu.: 1.13e+09   1st Qu.: 15.3  
+##  Median : 2261   Median :39.3   Median : 4.17e+09   Median : 19.9  
+##  Mean   : 7391   Mean   :40.5   Mean   : 6.71e+10   Mean   : 21.4  
+##  3rd Qu.: 5907   3rd Qu.:45.9   3rd Qu.: 3.24e+10   3rd Qu.: 25.3  
+##  Max.   :66520   Max.   :64.3   Max.   : 2.28e+12   Max.   : 76.2  
+##                                 NA's   :8           NA's   :8      
+##      savers          sigma             mu             p20       
+##  Min.   : 0.29   Min.   :0.451   Min.   : 4.89   Min.   :   79  
+##  1st Qu.: 5.42   1st Qu.:0.619   1st Qu.: 6.38   1st Qu.:  298  
+##  Median :10.82   Median :0.727   Median : 7.39   Median :  791  
+##  Mean   :15.12   Mean   :0.759   Mean   : 7.49   Mean   : 3503  
+##  3rd Qu.:19.03   3rd Qu.:0.864   3rd Qu.: 8.38   3rd Qu.: 2242  
+##  Max.   :63.58   Max.   :1.303   Max.   :11.00   Max.   :40348  
+##  NA's   :16                                                     
+##       psav      
+##  Min.   :  317  
+##  1st Qu.: 1762  
+##  Median : 4263  
+##  Mean   : 9190  
+##  3rd Qu.:11876  
+##  Max.   :74809  
+##  NA's   :16</code></pre>
+<pre class="r"><code>summary(1-inc$savers/100)</code></pre>
+<pre><code>##    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's 
+##   0.364   0.810   0.892   0.849   0.946   0.997      16</code></pre>
+<p>So the object <code>inc</code> in memory has accurate parameters for the lognormal distribution of per capita income in memory.</p>
+<p>It also has the 20th percentile of per capita income, and the nth percentile of per capita income, where <span class="math">\(n\)</span> corresponds to the share of the population that do not save at a formal financial institution.</p>
+<p>Are these estimates plausible?</p>
+<pre class="r"><code>## Plot p20 vs income per capita.
+##      Has to be all below 45 degree line
+qplot(inccap, p20, data=inc, geom=&quot;point&quot;, log=&quot;xy&quot;)+geom_abline(intercept=0,slope=1)+
+  labs(list(title=&quot;Income levels: bottom quintile vs. average&quot;, x=&quot;Income per capita, USD at PPP&quot;, y=&quot;Income cutoff at the bottom quintile&quot;))</code></pre>
+<p><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABgAAAANgCAMAAADd/FOkAAAAwFBMVEUAAAAAADoAAGYAOjoAOmYAOpAAZmYAZpAAZrY6AAA6ZmY6kLY6kNtmAABmAGZmOgBmZmZmZrZmtv9/f39/f5V/f6t/lat/lcF/q9aQOgCQZgCQkGaQkNuQ29uQ2/+Vf3+VlcGVweurf3+rlX+r1v+2ZgC2kDq2tv+225C2/7a2///BlX/B6//Wq3/W///bkDrbtmbb/9vb///l5eXrwZXr///y8vL/tmb/1qv/25D/68H//7b//9b//9v//+v///9CLx2IAAAACXBIWXMAAB2HAAAdhwGP5fFlAAAgAElEQVR4nO2de6PcyHXcZ+UoIRMyD9KyxTxWlq3Jw/bqJroSZ7k0ze//rTIvzDSAA3QB6NOPQv3+4Z0hBsB0na7CNNDA4bsQQohdcii9A0IIIcqgABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iABBCiJ2iACDldDj86h9L78T371/eHg4fsq/j5XD49Z/Qhb/+F+vPXES/XLdPjwVTNKkQNxQApCgAwGWPhzfGn9mIfbnHPikAhAMKAFIUANiix8PD9YM/8xH5cs99UgAIBxQApCgAsEVLB0AEY58UACIdCgBSFADYogoAsWcUAKQoALBFFQBizygASFEAYIsqAMSeUQCQ8gyA09UNL7YxMJOv7y9v9Zzy26dDf7HT9cXt7fuSx8vfvXC5rdvMm55b9Zc7r/qHH3s788FeXbiOl8N4B8d2eAuAy3+Fmxh/v9uWrksFf25pilGrfLjuzbv7Ch7LPr7u48sZMvX2yT4JPNn0U607asBJbuXxWBSW69pO1w/flx+s6Mbx3oznT/eVruPAZTcoAEjpB8D/+3S3kpsVXei6pfnWo7Nee/Oxe/fDzXD73fn5KaPnBm41XO7y+rHp5/6OV/dcx8tj/x65NRkAj6/83KvR95sOgHVNMfji9x3FA2AgUzQAZprebl2jASc4PZe8fT9Yrks73fb82pSjFX0P9+NdEACzhSR8UACQ0guAf/Ofnp2wd9wWuE3/rc4fLr35YXrnHv0y+6lxx3261Xi5Y+BClwPrNxOre6wj2Hi4g2YABF+5O3Adf7/JAFjXFIPv3X38f6IBMJQpFgCzTW+1rtWANr0lb8qgcp2/yL99/9iCsaLem//+bSjz5LcRTigASOkFwL3rXYcvbp34+uflvUu3Cw56r5+5dsU3wYevnzkGffN46B0BXpd9sUzl4VbGcuf/ewwqdMtZq+v+b7CrM+PgL4+9Dr6y+f3scwDrmiLguoLH9tEAGMs0Ow9gvumN1sUb8Pq1n7+6ulCE5HqMvH39X/aKbkt8eHxnqJCEDwoAUgYBcO/sx64PvnSudO2i3RFedyh7taCnLb17fPjx90u3omP/CHt4LPxwK2O5x2Hk9+dpW2t13TpengYaftTgpb+ntz/N72cHwLqmGOxAsH04AIYyzQbAfNMbrYs34DHY1W57qFynQ9AgUyu6v/lM2lghCR8UAKT0AyAYx7Y682XJS1/sjetfe/jp0B9u7/4ODwEffdW4+GZ2uachXfbn3dRiQQCAB4YvwVe+rPryMfv7mQGwrikCeis44gEwlGk2AGJNP25duAF7q+4+jcoVfhFzRWGDXf6+rjT2bYQPCgBS+gHQ9bfOdwZ98HLo1b/K4yU4hRd21nfBit5975va5c3hsXC3IXO53mh2t7npxYLD6gi9g/L7F7O/nxkA65oioLeC8NA4EgBDmWYDAG36Z+viDRjyCABQrtPUVswc6n4ixL6N8EEBQEovAB69qXMWY5ZA/6grcJnRwG+3oktnDs8MXnv44Fi4+4y93MPegiGF8WLhOQBjuMWg913u39n+fmYArGuK/vafzfsw0GgAjGSaDYBY04+/D96A/bV03w+T6zSxiW5Fj/b4HjZK9NsIFxQApPQCYOQ7L+MA6E85Co7wQ9frWdQ9APoMrDBwK2O5U/D7v7Pj8WKhWQdnX2d4Cb/L3XDs72cGwLqm6LdlkCBHNADG/xsJgNmmH7cu3oDdTvRXjck1CoDBiuzrSaPfRrigACAlGgCDQdbBWcHuMC38sOF63z5F+u3drSaWG/4gsRebnQdgYgTAxPezAmBdU4T0EwSeB7AoAKJNb/3cw+cBHI1VY3INAmC0omAO2e3bXNYV/zbCBQUAKaUCYHBpyaRb9Y61Q+sdLxaOtzynFc2NZOwzAEZX9Qxa9/t9M0ADBgft74IhG0iuXgAYKwIDoLq7cnCiACAl3RDQrOvF7p8TjFdMzJc9r97yO2MdwaYvzAxjeA0BoQHwkmkIKGKSw9YN1j7fgDc7Di6EfU76i8sVBoC1on57dTOBa7wR0x5QAJAyHwBLTgLHAmB2LME8Y/nk5gmncN7TeDHjOstgfpGF10lgNAB6zWueBB5f1b8mACLDOMPWDZhvwN6F+EEAQHINT5YPV9T/gWWeBBbZUACQMh8APU+9mczktY+zrmf8lOhhTOLqcfXa48MlzMWMALBct7/W3s3JUl0GigZAb48f/x+u4HHR5/oAiDX991Hrhsw2YG/VoYkjcoWtZ66o5/XdZaDAtxEOKABImQ+A8Cjs/t7k7KdZ1+sd4o0GG/qXcFrLnf/81f95XvVtLhYMeluHpQbhBe8pJ4KhAdBts78zoTMetwdArOm/D1sXb8DhlfrhnIeoXIMAGK9oOKHicc+NyLcRDigASJkPgKsr3bvY8fkj3Lz/wbzrHZ8rCqb4P+hdwmktd37/PwcuYS0WjHmER9AzJzGvF7s8v95zD8xbQXQbP4ZDGyuaIiCYDfu8g8SXt/03wQC475N5K4i5pr8v8p97XxBrwIGH96c1x+QKP2yuKNjZa+s+bgUR+zYiPQoAUiIB8LgZ3PWPxzWZwR3QHnf2mne957LmsHLPtqzlblelvAuXHy7Wmwh2WzJyv7CXx3Ukz1uM2d8vnDT8/HNdUwQ8je34/H6Pm7zdL3lBAuC5T+MAiDT9uHXhBnyu7zS4JAeQa3gOYLyix7u3mWm3rw18G5EeBQApkQC4970bwTHm8L24652CD40v5HiOhk8sF9wObGqxxzp6txa+70o4nvDgvOC/e15XGN60Z/Tm6bmy4M91TREQXNb4V2+NprrcWBoJgOc+jQMg0vRG6y5pwB6PrADk6v22sFfUfze4Zcn8txHpUQCQEguA4Art3nD34D3A9QKzHA8qB6dDJ5Z7GXT38WKm43V7NeVfbx4W3L8eaOI7f+j/ubIpQroJUJcx8+7/T891ggHw3CcjAOab3mpdtAHD6VvvXoYZMi9Xf3DJXtEjAX74b8+Vx7+NSI4CgJRoAHQdrjcQcPeb8Uz9+/K26917rtVre9fDmMuNr/EZLmZMBHvu9GQA3JftjyWPvt/34c1uHv+5rikCbgn0of//L90+gQHw3CcrAGab/vto4ftmgAZ8fP3LLo02OC/X4OzCxIqO92DrXTEb+zYiOQoAIVyZv2J17xgzUkRGFABCuKIAmEO3/i+LAkAIVxQAA0LPjzyZTHijABDCFQXAgGAOSu9vUQAFgBCuKAAGPKcjPGZGiFIoAIRwRQEwpDcNQKeAi6IAEMIVBcAI/Lk0whkFgBCuKAAM7hGg87+lUQAIIcROqTUAXkn4XHoHcsEjWQxJSkdmSa8/frw3AhqtAsAXuQUdkpSOrJJmsX8FQCXILeiQpHRklDST/SsAKkFuQYckpSObpNnsXwFQCXILOiQpHZkkzWj/CoBKkFvQIUnpyCJpVvtXAFSC3IIOSUpHBkkz278CoBLkFnRIUjrcJc1u/wqASpBb0CFJ6XCWtID9KwAqQW5BhySlw1XSIvavAKgEuQUdkpQOR0kL2b8CoBLkFnRIUjrcJC1m/wqASpBb0CFJ6XCStKD9KwAqQW5BhySlw0XSovavAKgEuQUdkpQOB0kL278CoBLkFnRIUjpSS3oobv8KgEqQW9AhSelIK2kN9q8AqAS5BR2SlI6Uklbh/q8KgEqQW9AhSelIJ2kt9q8AqAS5BR2SlI5UktZj/wqASpBb0CFJ6UgjaU32rwCoBLkFHZKUjhSS1mX/CoBKkFvQIUnp2C5pbfavAKgEuQUdkpSOrZLWZ/8KgEqQW9AhSenYJmmN9q8AqAS5BR2SlI4tktZp/wqASpBb0CFJ6VgvqaP9b1w1aLQKAF/kFnRIUjrWSup59H/YeEcJ0GgVAL7ILeiQpHSsk9R18Odw2JgAoNEqAHyRW9AhSelYI6nv2P/hsDUBQKNVAPgit6BDktKxXFLvU78KABLkFnRIUjqWSup/5Y8CgAS5BR2SlI5lkua48FMBQILcgg5JSscCSTM97UUBQILcgg5JSgcsab6HfekqIA7kFnRIUjpASbNO+tU8AArkFnRIUjogSXPf80EzgRmQW9AhSekAJK31lj+TgEarAPBFbkGHJKUjKmlz9q8AqAS5BR2SlI6IpA3avwKgEuQWdEhSOmYlbdL+FQCVILegQ5LSMSNpo/avAKgEuQUdkpSOSUmbtX8FQCXILeiQpHRMSNqw/SsAKkFuQYckpcOUtGn7VwBUgtyCDklKhyFpEftPuVHQaBUAvsgt6JCkdIwkLXP0v/XuDz1Ao1UA+CK3oEOS0jGQtNDgz+b7v/UAjVYB4Ivcgg5JSkdP0lJj/9vvAN0DNFoFgC9yCzokKR2BpOVO/SoAQlI0QQ3ILeiQpHQ8JC155Y8CICRFE9SA3IIOSUrHXdKyF34qAEJSNEENyC3okKR0XCTN97CvCRQAISmaoAbkFnRIUjo+l7f/V10F1CNJG1SA3IIOSUpHBe7/2A3NA7jyWbSFJKNjL5JeXbf0TlxJuSeg0dYaAGlSsDw6XKRDklJRydF/ckCjVQD4IregQ5IScbN/RklBo1UA+MJYWiY8ksWQpDR0R/+MkoJGqwDwhbG0THgkiyFJSXgO/jBKChqtAsAXxtIy4ZEshiSlIBz7Z5QUNFoFgC+MpWXCI1kMSUpA/9RvIUldzz+DRqsA8EVuQYckbZ6h85aRNOll/yNAo1UA+CK3oEOSNs7YdotImnbi7wjQaBUAvsgt6JCkTWN5bglJE9/6ZwRotAoAX+QWdEjShrENVwFQHS5tUgC5BR2StFmm7FYBUB0ubVIAuQUdkrRRps1WAVAdLm1SALkFHZK0SeasVgFQHS5tUgC5BR2StEHmjXa1pFv8W1cBzeHTKPmRW9AhSVsj6rNrJd3m4JoHMINTq2RHbkGHJG0LwGZXSrr1GF4zgafxapbcyC3okKQtAZnsOkm9R/G3ARqtAsAXuQUdkrQdQHdWAFRH6eZLhdyCDknaCrA3KwCqo3TzpUJuQYckbYMFzqwAqI7SzZcKuQUdkrQFFvmyAqA6SjdfKuQWdEjS+lnoyoWuAnIFNFoFgC9yCzokae0sNuUy8wCGK9q+mhDQaBUAvsgt6JCkdbPCTIvMBB6uJnECgEarAPBFbkGHJK2ZVU5aWFKXoSTQaBUAvsgt6JCk9bLSRstK6nMyGTRaBYAvcgs6JGmtrPZQBUB1JGyJosgt6JCkdbLBQRFJ/S73UQAYJGyJosgt6JCkNbLJPwFJHS/4VAAYJGyJosgt6JCk9bHRPeOSel7yrwAwSNgSRZFb0CFJa2Ozd0Yl9fHo0dpTrhQ0WgWAL3ILOiRpXSSwzsIBoHkAY5K2RUHkFnRI0opI45ylA6CFmcBf3x8OP/z4/eXXf1pp6ctI2xjlkFvQIUmrIZUlFw8AB0CjBQPgYv+3ADgcPqx29QWUbr5UyC3okKSVkM6PFQARbv5/CYDjIU8ClG6+VMgt6JCkVZDSjRcEQKIt+gMaLRQA3z4dDr/+05e35wC4JMCv/nGDs4OUbr5UyC3okKQVkNaMY5I26P9JA+B0OLz7/v0WAJdBoHfrjR2ldPOlQm5BhyQtTmovjkja4ABQ2gA4Hi6nfu8BcP45kOFEcOnmS4Xcgg5JWpj0TqwAmOVs+Zdj/nsAnH8CZBgDKt18qZBb0CFJi+Lhw5akwXb2HgBf31/P+3YBcFIA4Mgt6JCkBfFxYUPS0PAVAAqAtcgt6JCkxfDy4LGkPcffewAMhoCOOgeAI7egQ5IWws+BR5IOLL9B/098EvhyzH8PgPPvgTfrjR2ldPOlQm5BhyQtgqcBxwLA82bQXoBGi14G+qYLgMucgAwzwUo3XyrkFnRI0gL4+m80AJy37wFotNhM4Ovsr2sAvBwOOUaAKiq9bcgt6JCk2fG233gAtAdotItuBXEjx0TgakpvK3ILOiRpZvx9WAEQ4zLwk9P/Kym97cgt6JCkWcnhwpGrgJoENFr4dtD3CMhj/3WUXgrkFnRI0ozkMeHpeQDtpgBotHogjC9yCzokaTZyue/kTOCGUwA0WgWAL3ILOiRpHjLarinp4gSoKyZAo1UA+CK3oEOS5iDrUTf0CyC2N5X9UACNdj4Aelf/PNGtIGDkFnRIUn8yWykYALN7VNtQEWi0CgBf5BZ0SFJvsvtoggBYMFSUB9BoFQC+yC3okKS+FDBRBUB1lG6+VMgt6JCknhSxUAVAdZRuvlTILeiQpH4UMlDsKiAFQEZKN18q5BZ0SFIvitmnLekS/1cAJKZ086VCbkGHJPWhoHlOSLrA/4mvAvowPhWsk8Awcgs6JKkHRb0zJim0c3X5vwKgDuQWdEjS9BS2zjSSVuX/CoA6kFvQIUlTU9w5GSUFjVbnAHxhLC0THsliSNK0FLd/TklBo1UA+MJYWiY8ksWQpCmpwP45JQWNVgHgC2NpmfBIFkOSpqMK++eUFDRaJAC+vr88Df7BMcdDgUs3XyoYS8uER7IYkjQVldg/p6Sg0a4KAJ0EhmEsLRMeyWJI0jRUY/+ckoJGuzwAvr5XAOAwlpYJj2QxJGkKKrJ/TklBo40EwMtoOvQFDQHBMJaWCY9kMSTpZuqaMsUpKWi0kQCw7wf9brO/RyndfKlgLC0THsliSNKN1Gb/nJKCRhsbAjqV8X8aN2EsLRMeyWJI0k1U5/6vnJKCRrviJHAWSjdfKhhLy4RHshiSdAM12j+npKDRKgB8YSwtEx7JYkjS1dRp/5ySgkariWC+MJaWCY9kMSTpSmq1f05JQaNVAPjCWFomPJLFkKSrqNf+OSUFjRYMgC9vdTfQVTCWlgmPZDEk6Qpqtn9OSUGjxQJgMB1AAQDDWFomPJLFkKSLqdD+e7vEKClotFAADK8FVQDAMJaWCY9kMSTpQiq0/8HjuxglBY0WCoBjFs/vUbr5UsFYWiY8ksWQpIuo0f6HD/BllBQ0WiQAvn3K7v80bsJYWiY8ksWQpAuo0v7Dp71fXzNKChotNg8gy+TfHqWbLxWMpWXCI1kMSQpTp/0rAAIUAL4wlpYJj2QxJClIrfavAAgAh4AUACthLC0THsliSFKIeu1fARAAnQR+yXED6D6lmy8VjKVlwiNZDEkKULP9KwACoAAoMAZUuvlSwVhaJjySxZCkUeq2/1ddBfQEmwj25W3u3wClmy8VjKVlwiNZDEkaoXr7f9U8gAfgSWBNBFsJY2mZ8EgWQ5LO0oL9v2omcIcCwBfG0jLhkSyGJJ3m0Ij9D2CUFDRaBYAvjKVlwiNZDEk6RaP2zykpaLS6HbQvjKVlwiNZDElq06r7v3JKChqtAsAXxtIy4ZEshiS1aNj+OSUFjVYB4AtjaZnwSBZDko6pyP7X7AqjpKDRKgB8YSwtEx7JYkjSIRXZ/+D6ThBGSUGjnQ+Ay+nfDzoJvAHG0jLhkSyGJO1Tk/0PZ3iBMEoKGq0CwBfG0jLhkSyGJA2pyv5H93gAYZQUNFoFgC+MpWXCI1kMSfqkLvtXAASARqtzAL4wlpYJj2QxJGlHbfavAAgAjVYB4AtjaZnwSBZDkt6oz/4VAAGg0SoAfGEsLRMeyWJI0gs12r8CIAA0WgWAL4ylZcIjWQxJWqv9v+oqoCeg0epeQL4wlpYJj2QxJGm19v+qeQAPQKNVAPjCWFomPJLF2LukNdv/q2YCd4BGqwDwhbG0THgki7FvSSu3/3UwSgoa7dJzAN8+5Xk2WOnmSwVjaZnwSBZjz5JS2j+npKDRLj8JnOcJ8aWbLxWMpWXCI1mM/UpKav+ckoJGuzwAzr8BPgzf+/nj759/nvnt8lcDSjdfKhhLy4RHshg7lXTNydW15E4aRklBO19xGej4J8C//P0jAH76eOU3f1z4akjp5ksFY2mZ8EgWY5eS5rT/dVfybIFRUtDNVwXA4CTw2f+7APjz9a9ffvfxb/+y6JUCoHV4JIuxQ0nz+vHctfw+e8Ioab4AOJt4FwDdT4HzW39Y8koB0Dw8ksXYnaSZD8fnZvM6/TZglNQtAL6+7w8B/fTx49/8wz0Afn6O7/x2ySsFQPPwSBZjZ5JmP/M7EwDr5vnGYZTUKwAukwLeBK/Ph/C//9d/ugfAT92Azp8v/o6/UgA0D49kMXYlaYELf6YDYO63wSYYJU0YAMOJYD/8GAbA3/3lexcA53/vh/M/f/zrf8ZfKQDah0eyGDuStMh1nwqAJDgGwLvhAkEA3E8G//K7q8mDr+6r+RgA7r4QwolrZy+02YO18Yn/KbSfHCwPAOM+EJ2dPy8Hvdg6/uq+GgWAELVQzlan/H8iACYWFhBJ2s0KgI9/wF8Zqyz9AyoVjD8uTXgki7ELSW+eWnLj09cA9f8vxagQo6Sgd7sFwIpfACGlmy8VjKVlwiNZjB1IejPUcpJOGfqc/29JAEZJQe9OGgAbzwGElG6+VDCWlgmPZDHoJe3ctEJJx1avAJgA9O7UAfC4tuc3f8RfGass3XypYCwtEx7JYpBL+vTSGiUdOb0CYALQu5MGQHh1//kP/NWY0s2XCsbSMuGRLAa1pKGTNiGpAmAC0LtXPRDmxvNyoEcAaCbwEMbSMuGRLAaxpH0fbUJSBcAERQJA9wIawlhaJjySxaCVdOiibUiqq4BsigSA7gY6hLG0THgki0Eq6dhEG5F0u/9TSpowAL5///K2u//DJQwmZwJ/1/MAhjCWlgmPZDEoJbU8tBVJN/s/paQpA+Ds+k/TP/XvBTQIAD0RrA9jaZnwSBaDT9KJQ2hJ2jKIsX8HA+DYu/9n/5UTpZsvFYylZcIjWQw2SSdHUJJIuv3wPANskl4AjRYJgMFTgE/W7YBSU7r5UsFYWiY8ksXgknTGoFNImmCAPgNckt4AjRY8CawAWAljaZnwSBaDSdJZd04gaYpLdDLAJGkHaLRgAITnfY+jh8I7ULr5UsFYWiY8ksXgkTRizdslTXKRfgZ4JH0CGi14DiD4CfBiXAaUntLNlwrG0jLhkSwGi6RRX1YAtAxotFAAfHn7uOo/+NOV0s2XCsbSMuGRLAaHpIArKwBaBjRabB7ASzgBbHQVqAelmy8VjKVlwiNZDAZJIU9WALQMaLTgzeBO1gRgT0o3XyoYS8uER7IY7UsKOrICoGVAo4XvBnoZ+8lm/zxuwlhaJjySxWhdUtiPdRVQy4BGW+ujNEs3XyoYS8uER7IYbUu6wI41D6BlQKNVAPjCWFomPJLFaFnSRW6smcAtAxqtAsAXxtIy4ZEsRruSLjRjSdoyoNEqAHxhLC0THslitCrp4mNxSdoyoNEqAHxhLC0THslitCnpiqEYSdoyoNEqAHxhLC0THslitCjpqpF4SdoyoNEqAHxhLC0THslitCfpyhOxkrRlQKNVAPjCWFomPJLFaE3S1dfhSNKWAY1WAeALY2mZ8EgWoylJt1yGL0lbBjRaBYAvjKVlwiNZjIYk3TYLS5K2DGi0CgBfGEvLhEeyGM1IunUOliRtGdBoFQC+MJaWCY9kMRqRdPsU3LikTUzzBWhE0kWARrv8bqB57ghXuvlSwVhaJjySxWhC0hTWHJW0jRv9ADQh6UJAo4UC4NungwJgHYylZcIjWYwGJE3jyzFJG7nVJ0ADki4GNFooAF4OCoCVMJaWCY9kMaqXNJUpRyRt5Wb/ANVLugLQaJEAuPwAeLPFzVdQuvlSwVhaJjySxahc0nSOrABoGdBokQD4+v7w6z9tcfMVlG6+VDCWlgmPZDGqljSlHysAWgY0WjAA3m0x8zWUbr5UMJaWCY9kMSqWNK0bKwBaBjRacAhIAbASxtIy4ZEsRrWSpvZiBUDLgEYLngTOfQqAxk0YS8uER7IYlUqa3ol1FVDLgEYLBcDX94cPG8x8DaWbLxWMpWXCI1mMKiX1MGLNA2gZ0GixiWBf3uYeBCrdfKlgLC0THsliVCipjw9rJnDLgEYLzgQ+J4DmAayBsbRMeCSLUZ2kXjYsSVsGNFrNBPaFsbRMeCSLUZmkfkfhkrRlQKPVTGBfGEvLhEeyGFVJ6jkII0lbBjRazQT2hbG0THgki1GRpL5j8JK0ZUCjBSeC6TLQlTCWlgmPZDFqkdT9EhxJ2jKg0WomsC+MpWXCI1mMOiTNcAWmJG0Z0Gg1E9gXxtIy4ZEsRg2SZrn+UpK2DGi04Elg3QxuJYylZcIjWYzykma6/F6StgxotOhloJoJvA7G0jLhkSxGaUmzzb6SpC0DGi02ESz/DaFLN18qGEvLhEeyGGUlzTj5VpK2DGi04ElgzQNYCWNpmfBIFqOkpFnvvSBJWwY0WgWAL4ylZcIjWYxykma+9Y4kbRnQaBUAvjCWlgmPZDFKSZrP/u9bkqQtAxoteDO47JRuvlQwlpYJj2Qxykia8ej/fpgnSZsGNFoFgC+MpWXCI1mMEpLmHPx5/NCflzTzeJQrjL0UNFoFgC+MpWXCI1mM/JJm9drBcG9ksVx75QtjLwWNFg6A+4mADMP/V0o3XyoYS8uER7IYuSXNbLQHKAGiAdEUjL0UNFowAILzwHkioHTzpYKxtEx4JIuRV9LsLjsMAHPjwE+ElmDspaDRwhPBnvzw43pfhyndfKlgLC0THsli5JS0gMWOAsDavgKgekCjxZ8IdrsZxOn8V8JR+msAACAASURBVI5JwaWbLxWMpWXCI1mMfJIWMVgFAAeg0UIBcApM/xIGGW4MVLr5UsFYWiY8ksXIJWkpe1UAUAAaLRQAx3DgP8/jYUo3XyoYS8uER7IYeSQtaK4KAAZAo13xPIAsN4cu3XypYCwtEx7JYuSQtKy1xgNAVwFVD2i04K0gwkGfk24FgcNYWiY8ksVwl7QOZ41YPJP/U/ZS0GgVAL4wlpYJj2QxnCWtxlgjFl/LbqaAsZeCRqshIF8YS8uER7IYrpLWZKs17YsvjL0UNFqdBPaFsbRMeCSL4ShpXZYrSVsGNFpdBuoLY2mZ8EgWw03SuuxfkrYNaLSaCOYLY2mZ8EgWw0nS2uxfkrYNaLQrbgWR5WZApZsvFYylZcIjWQwXSeuzf0naNqDR6mZwvjCWlgmPZDEcJK3R/iVp24BGq9tB+8JYWiY8ksVILmmd9i9J2wY0Wj0QxhfG0jLhkSxGYklrtX9J2jag0SoAfGEsLRMeyWIklbRe+5ekbQMaLTYTuPcIgKMmguEwlpYJj2QxEkpas/1L0rYBjXZVAOhWEDCMpWXCI1mMZJLWbf+StG1Ao10eAF/fKwBwGEvLhEeyGIkkrd3+JWnbgEYbCYCXg4WGgGAYS8uER7IYSSStwv4j952TpC0DGm0kAHozwB68m/9QCko3XyoYS8uER7IYCSStwv4fN3ye+n9J2jKg0caGgE5l/J+m9BhLy4RHshibJa3D/oPHvkwsIElbBjTaFSeBs1C6+VLBWFomPJLF2ChpJfbfe+yXvYQkbRnQaBUAvjCWlgmPZDG2SBoZdc+JAuAJYy8FjVYTwXxhLC0THslirJe0IvtXAIQw9lLQaDURzBfG0jLhkSzGWklrcv9XBUAIYy8FjVYTwXxhLC0THslirJO0MvtXAIQw9lLQaDURzBfG0jLhkSzGGkmrs/9XXQUUwNhLQaPVRDBfGEvLhEeyGMslrdH+4/4vSZsGNFpNBPOFsbRMeCSLsVTSKu0/HAGaWkSStgxotJoI5gtjaZnwSBZjmaR12r8CoAdjLwWNVvMAfGEsLRMeyWIskbRW+1cA9GDspaDRKgB8YSwtEx7JYuCS1mv/CoAejL0UNFpNBPOFsbRMeCSLgUpas/0rAHow9lLQaPVQeF8YS8uER7IYmKR12/9rkACTS0jSlgGNFgyA4GqgPBFQuvlSwVhaJjySxUAkrd7+Xx8JML2AJG0Z0GixAOhdDZrlhEDp5ksFY2mZ8EgWIy5pC/b/Gt9NSdoyoNFCAfDt07lSPlz/vFwWmmEeGE3pMZaWCY9kMWKSNmL/cSRpy4BGCwXAKTD9Sxh8WGfqSyjdfKlgLC0THslizEtKY/+StG1Ao4UCoHf7t6/vD2/WWPoySjdfKhhLy4RHshhzkhLZvyRtG9BokQA4H/SHk39fdC8gHMbSMuGRLMa0pFT2L0nbBjRabCJYb9DnpLuB4jCWlgmPZDEmJI1dU9Meu5e0aUCjVQD4wlhaJjySxTAl5bP/3UvaOKDRagjIF8bSMuGRLIYhKaH7v+5c0uYBjVYngX1hLC0THslijCTltP9dS0oAaLS6DNQXxtIy4ZEsxkBSVvvfsaQUgEariWC+MJaWCY9kMXqS8tr/biUlATTaFbeCyHIzoNLNlwrG0jLhkSxGICmz/e9UUhpAo9XN4HxhLC0THsliPCTltv9dSkoEaLS6HbQvjKVlwiNZjLuk7Pa/Q0mpAI1WD4TxhbG0THgki3GVlN/+dycpGaDRKgB8YSwtEx7JYnzeh/3vTFI6QKNVAPjCWFomPJLF+LwP+9+VpKV3wAHQaOEA+PI26zmAz6ItdiPZtRuU3oks7EZSSkCjBQPglPmBYDTHHozHFiY8ks2yl6P/CzuR9JWzl4JGiwXAyyEkw0RgmtJjLC0THslmuB39l96LXOxC0iuMkoJGCwXAZfjnPvYT/OlK6eZLBWNpmfBINsn96F+S0sEoKWi04M3ggqP+868B3QwOhrG0THgkm+Ax+CNJ6WCUFDRa8HbQoeUfdTtoHMbSMuGRzCQY+88jaQUnG8glDWDspaDR6oEwvjCWlgmPZGP6T3vJIumhgifMMEvah7GXgkarAPCFsbRMeCQbMrTiHJI+LrhY/+ntO8Er6RDGXgoaLXgO4M3kKydKN18qGEvLhEeyPmMzzSBpcMnd+k9v3gtWSccw9lLQaNGrgJ7PhDxlmQlQuvlSwVhaJjyShVhOWnsAbPv1EMApqQVjLwWNFpsHcHrM//r6Ps9MsNLNlwrG0jLhkeyJbaOOknYbnA6AuLNv+/UQwiipDWMvBY12PgB6D4J5onMAMIylZcIjWceUh/pJ+vDtSRMHnF0BsBzGXgoarQLAF8bSMuGR7Ma0g7pJ+jTuKRNHrF0BsBzGXgoarQLAF8bSMuGR7MKcf3pJGjp3xP/nvF0BsBzGXgoarW4H7QtjaZnwSBYbaM8RAPZYz9Dbzf1UACyHsZeCRqsA8IWxtEx4JIt5Z5YAMPdi4O0TNp/K/4kkjcHYS0GjVQD4wlhaJiySxa0zTwDEl5hcOpH/00gah7GXgkarAPCFsbRMOCRDnLOSAJhZPI3/k0iKwNhLQaNVAPjCWFomDJJhxpnhKiBkiXRj/VMwSIrB2EtBo1UA+MJYWibtS4Z6aYZ5AMgSCoB0MPZS0GgVAL4wlpZJ65LhTpphJjCyhAIgHYy9FDRaBYAvjKVl0rZkS3y0EknBUwYbttC2pEuoRNKkgEarAPCFsbRMWpZsmVPWIil4ynj9BlqWdBm1SJoS0GgVAL4wlpZJu5IttclqJAUvGVq9/nYlXUo1kiYENFoFgC+MpWXSqGQrPLIeSSH/X58AjUq6gnokTQdotAoAXxhLy6RJyVYZZBuSjgJg+VdtUtJVtCHpMkCjhQPgcl+4H378/pLhgfAXSjdfKhhLy6RByVYeHrch6TAAFv0auC3aoKQraUPSZYBGCwbA7baglwA49J4P7Ebp5ksFY2mZNCfZ6tGRJJJ6Xr753MDT9BeNB90XbU7S1TD2UtBosQC43xb6HADHQ54EKN18qWAsLZPGJNtgwCkk3XyFDrqF+1YWnRF4LNqWpBtg7KWg0UIB8O3T4fDrP315e3kY5DHL4wBoSo+xtEyakmyT+yaQdPsVOvAWlk8bXhQWHDD2UtBooQA4HS4Phb8FwGUQ6F30E5sp3XypYCwtk4Yk2+ht2yXdYLFLD+JXTBtWAFAAGi0UAMfD5dTvPQDOPwcynAgu3XypYCwtk2Yk2+xsayVdZ8fGOuIfHS2lAJiFsZeCRosEwNnyL8f89wA4/wTQIyFhGEvLpBHJEvjaSklXDshY64h9dryMAmAWxl4KGi0SAF/fX8/7dgFwUgDgMJaWSROSJXG1dZKGprrWYg8DgOWszeNbWbR3DcPYS0GjVQD4wlhaJg1IlsjTcEmDDfZcNVUALJkFvGB7jw/XL2kiGHspaLQrhoCOOgeAw1haJtVLluyQFpY09Ny+J688xN4SAEu+f+f/tUuaDMZeChoteBL4csx/D4Dz74E3640dpXTzpYKxtEwqlyzhiMa8pIbn917MPs89wqYAWLyh2iVNCGMvBY0WvQz0TRcAlzkBGWaClW6+VDCWlknVkiW0/4ikxlG+Oey/ao/QAEg0z6BqSZPC2EtBo8VmAl9nf10D4OVwyDECRFN6jKVlUrFkSe1/XtLAeecDYB1oAKSZaVyxpIlh7KWg0S66FcSNHBOBaUqPsbRMqpUssf3PShp688Cn0xyUg/6f5ltXK2lyGHspaLTgzeAuAz85/Z+m9BhLy6RSyZLb/9oASHT7H9D/pz+7YPlKJXWAsZeCRgvfDvoeAXnsn6f0GEvLpErJHOx/dQCk3Jn1/r/kY1VK6gJjLwWNVg+E8YWxtEzqkyzJEbcBGADzgz5O+zbD8h8O9UnqBWMvBY1WAeALY2mZ1CaZl/3jATB3yJ1mPGgJK4aOapPUD8ZeChqtAsAXxtIyqUsyT3sFrwKa24vVw/jrUQDMwNhLQaNd9ESwDt0KAoaxtExqkszXW+FfAFsXS4oCYAbGXgoaLRYAL4ceCgAYxtIyqUcyb2NVANDB2EtBo4UC4MtbBcBKGEvLpBbJ/G1VAUAHYy8FjRa8F1C2yz87SjdfKhhLy6QOyXKYapsBoKuAZmDspaDRgncDze3/NKXHWFomNUiWx1IbDQDNA5iGsZeCRgs+DyDDU4D7lG6+VDCWlkl5yXIZKn4V0NbFErN0i+UlzQVjLwWNVgHgC2NpmZSWLJ+fgncDnaWE/y+mtKT5YOyloNEueCBMVko3XyoYS8ukrGQ57RR9HkCKxYrC0wtjMPZS0Gihk8AvWe4A3aN086WCsbRMSkqW100lKR2MkoJGCwVAgTGg0s2XCsbSMiknWe6DaUlKB6OkoNFiE8G+vM39G6B086WCsbRMSkmWfyxFktLBKClotPMB0L8DxANNBINhLC2TMpKVGEqXpHQwSgoarQLAF8bSMikhWZkzqYUkzf9leXphDMZeChqtAsAXxtIyyS9ZqQtpykha4MJRnl4Yg7GXgkar20H7wlhaJrklK3cd5ec2HueyHZ5eGIOxl4JGqwDwhbG0TPJKVvIy+s9tPM5lOzy9MAZjLwWNVgHgC2NpmWSUrPAs2s8FvFgB4ApjLwWNFrsVxA8/Bi+POS4JLd18qWAsLZNskhW2/9xmfNuOAsAVxl4KGu2qANBJYBjG0jLJJFkh9w83m9WMx1dg+G+zg6cXxmDspaDRLg+Ar+8VADiMpWWSRbJSB/89781pxmP/VwA4wNhLQaONBMCLUYEHDQHhMJaWSQbJio399M03oxkX9X8FQNOARhsJAHsiQIYbA5VuvlQwlpaJu2TF7H/o+EUDwHuLITy9MAZjLwWNNjYEdCrj/zSlx1haJs6SlbP/keNnvAoo3HL+FuDphTEYeylotCtOAmehdPOlgrG0TFwlK2n/4wDINw+g0KH/HZ5eGIOxl4JGqwDwhbG0TBwlK2v/RgBk2yMFQB4YeylotJoI5gtjaZm4SVba/q0AyL/pjNt8wNMLYzD2UtBoFQC+MJaWiZNk5e3/dWjDWSUt6P8KgKYBjVYB4AtjaZm4SFaF/b8ObDivpAWbgKcXxmDspaDRKgB8YSwtEwfJarH/1/6uSFI6GCUFjVYB4AtjaZkkl6wi++8jSelglBQ0WgWAL4ylZZJYsmrtX5ISwigpaLQKAF8YS8skqWQV278kJYRRUtBoFQC+MJaWSULJqrZ/SUoIo6Sg0SoAfGEsLZNkktVn/4M9+my9yQhPL4zB2EtBo1UA+MJYWiZpJCt41fskw0vxP1tvZtqNjNtTALQNaLR6IpgvjKVlkkKyGu1/PBn3s/Vmrt3Itr1XBUDbgEarJ4L5wlhaJtslq9H9rdvxfC5xj54S94Tg6YUxGHspaLR6IpgvjKVlslWyOu2/lgDInzivCoC2AY1WTwTzhbG0TLZJVpP99/dFAbADGHspaLR6IpgvjKVlskWymux/ONiuANgBjL0UNFo9EcwXxtIyWS9ZVfY/GmwfW2+/M2Teq+sGM22YpxfGYOyloNHqgTC+MJaWyVrJ6rL/Ob8fL5Fvz3tbzLVpnl4Yg7GXgkarAPCFsbRM1klWmf2bYy39N4r4f28nsm2cpxfGYOyloNFqIpgvjKVlskay6uw/MuLzWsz/g8P+fJvn6YUxGHspaLRrAuDrf9RloCiMpWWyXLIK7T8aAIXc/7Ef5h56wdMLYzD2UtBowQDonwvWPAAYxtIyWSpZlfYfC4BSh//ze+gFTy+MwdhLQaPFAuDY/+WrAIBhLC2TZZJVav+vxgj7YYrSO6gASAZjLwWNFgqAL2/7pf9hg7ODlG6+VDCWlskSyeq1/9fxNTYKAH4YeylotFAAnH8AvLnMCn5z+zuD/9OUHmNpmeCSVW3/r+P9q8v/dRWQA4y9FDRaJAC+fbre/OF0G/p5yTECRFN6jKVlgkqWxzyTbqXz2zr8X/MA0sPYS0GjxeYBXCf/fnl7nQ5wjgMNAcEwlpYJJlkm70xskfeVVeL/mgmcHMZeChotGAAfnv/ch4KcKd18qWAsLRNEslzW6WTTtfh/Lnh6YQzGXgoa7YIAOB/6X+8C9OWt7gYKw1haJlHJ8jmnm1EHq91DDPD0whiMvRQ02gUB8P14O/T/8laXgcIwlpZJRLKcB85+R+p9/2dPAJ5eGIOxl4JGC54Evh76v9weBHDSPAAcxtIymZUsr1s6DtUMzwakXn9V8PTCGIy9FDRa6DLQ+4U/p8P1LPCLHgiDw1haJjOS5bZK57H6z3s5GcDTC2Mw9lLQaNGJYBfrP/9ztv7TQSeBcRhLy2RSsvw+6Xy1jgKADsZeChotfiuId887QugyUBjG0jKZkKyIS/omgAKADsZeChotFgDfPl1d//6AyAw/AGhKj7G0TEzJSnmkAiAFPL0wBmMvBY0WvR306fZMmPtPAX9KN18qGEvLxJCsnEMe+qRd+XwAEMUCTy+MwdhLQaPVA2F8YSwtk5FkJZ3w4JkAn+euAmL6YcDTC2Mw9lLQaD0C4OePv3/+eea3yKsBpZsvFYylZTKQrKwNDgMg6Z58fp32eWCD7QQETy+MwdhLQbN2CIB/+ftHAPz08cpv/hh9NaR086WCsbRMepIVNznPBPj82MDcZiN7lnB/3ODphTEYeyno1ukD4Oz/XQD8+frXL7/7+Ld/ibwaUbr5UsFYWiaBZDU4nHcARLcaWyLhDnnB0wtjMPZS0K6TB8DZ0rsA6H4KnN/6w/yrMaWbLxWMpWXykKwSe1sYAAv2eksAOI1K+cDTC2Mw9lLQr1MHwE8fP/7NP9wD4OfnaM9v51+NKd18qWAsLZO7ZFV5G263S0xZAUAHYy8FDTtxAJwP6H//r/90D4CfuuGdP1/cfu7VmNLNlwrG0jK5SlaZs8F2u8iVFQB0MPZS0LFTB8Df/eV7FwDnf+8H9z9//Ot/nntlrKh086WCsbRMzpLV52tL/R/a/TlJY+tRAFQJYy8FHdvhKqAgAO4ng3/53dXyJ1/dP/gxIP1uCV+urlZ6J4bczRZbKsUXiKwm4ZaESMB8Hd6fBryMztyfl4NeTH7u1f2DCoB2KehpcceF1pDIliNrkf+LqpgvxK/vLzf++fr+dh8IECsAPv5h7pWxktI/oFLB+ONyRNExjQQjKumGgOBtbVpHJnh6YQzGXgq6daYAgH4BhJRuvlQwltaA7oi25Na3WWrOAKjwTMkUPL0wBmMvBd06OgR09v6VAbD4HEBI6eZLBWNp9ej8rJBkac6qLloHvaQdPL0wBqOkoFtHxiKPB4v5R0JaVwH95o9zrxQArfJ0zaYDINU8AC54emEMRknTBMCXt+sDILzW//zH3CsFQJOEptl2ACSaCcwFTy+MwShpmgCwEwAMAM0E5iytO33PbDwAFkAsaR+eXhiDUdJEAXBh5TkA3QvolbO0rgw9d18BkHWDpeDphTEYeyno1p4BoLuBcpbWq2WALV8FtIzPTV3LuQGeXhiDsZeCbu04Eey7ngfAWVrm8W8xyVzN2Fr15wKhUwSeXhiDsZeCbu04D+CCnghWegfSY1tfOcm8/X+48s8Fhp2KwNMLYxD20oIBkITSzZcKutKa8j0eyZ7YPu8RAFWmCaOkNnS99LXkRLAklG6+VJCV1rRR1SrZBmudMHqHAKjz90StkqaHrJdeAY3WYSJYEko3XyqoSmvOpSqVbIu1ZguASkeUKpXUAapeegc0WoeJYEko3XypICqteYuqU7JN1moafb8npN3JyhKgTkk9IOqlD0CjdZgIloTSzZcKmtKK+VOVkm2zVuvTDv6vACgOTS8NAI3WYR5AEko3XypISivuTlVKljwAPPxfAVAckl7aAzRaBYAvFKWFeFOVkm201jz+rwAoDkUvHQAaba1PJirdfKkgKC3MmaqUbKu1zgwAgR/OsZdeVCmpCwS9dARotAoAX1ovLdiX3CUbH4qDn9lirYOPLlnfgu3W6f8KgKYBjRYOgK/vryWa4fzvldLNl4q2S2uBLXlL1rPIZUfh6ax1QQAs2nKV/q8AaBrQaMEAuNt/vggo3XypaLm0FpmSs2Q9P106DjOx4HLTxQNg4W+PGv1fAdA0oNFiARD4/+GQ5Yxw6eZLRbultdCTfCXr+ekic434/9oEWLTDjcLTC2O020unAY0WCoBvn851/OH65+n81/IbhC6ndPOlotXSWmxdtQZAfJVrPoWvXQHQAK320jlAo4UC4BSY/iUMPqwz9SWUbr5UtFlaK4yrtQBYu5IlPzwUAI3QZi+dBzRaKACO4cD/7Q6h3pRuvlS0WFqrbGsvAQBKqgBoiRZ7aQzQaJEAOB/0vwtevuQYAyrdfKlor7RWmpYCYGL9y3etFnh6YYz2emkc0GixmcC9QZ+T7gWE01pprfasSq8Ciq/QKQAWnWOuMyl4emGM1nopAmi0CgBf2iqtDUZU5zyA6Pr8AmBBY1b6W4GnF8Zoq5digEarISBfWiqtTS5U5Uzg6PrWrCa5pLWOFvH0whgt9VIU0Gh1EtiXdkprowWVkGzbLq913dSSJjml4QFPL4zRTi/FAY1Wl4H60kppbfafApJtdc2Vn1YA0NFKL10CaLSaCOZLG6WVwH3yS1bKNhUAdLTRS5cBGu2KW0FkuRlQ6eZLRQullcR7sktWzDcVAHS00EuXAhqtbgbnS/2llch5FABrUQAUp/5euhzQaHU7aF9qL61kvlM2AHLap64CoqP2XroG0Gj1QBhf6i6thLZTNACyGmh6Sev0fwVA04BGqwDwpebSSuo6JQMg7yG0g6RV+r8CoGlAo13xUPijJoLhVFtaqR3TS7Lp3SyVANVKmhqeXhiDUVLQaFcFgG4FAVNpaaW3SyfJ5ox9MACkAEgMTy+MwSgpaLTLA+DrewUATpWl5eGVKyWLnMSdd/bwwwqA5PD0whiMkoJGGwmAF+t3toaAcCosLR+nXCdZZAAHs3YFgA88vTAGo6Sg0UYCoDcD7MG7+Q+loHTzpaK60vLyyVWSDQtr5v+xtazYh8VUJ6kXPL0wBqOkoNHGhoBOZfyfpvQqKy0/l1wj2bi0pheA1rN8F1ZQmaR+8PTCGIySgka74iRwFko3XyqqKi1PkywZAOCF9Im+flWSesLTC2MwSgoarQLAl4pKy/cYuWgAxL7bzCaWU5GkvvD0whiMkoJGq4lgvlRTWt5DJC4BkGhwZ34bS6lGUm94emEMRklBo1UA+FJJafmPkPsEQJK7JEQ3soxKJPWHpxfGYJQUNFrwmcB9NA8AporS8rd/p6uAXlPsezxlllGFpDng6YUxGCUFjVYB4EsFpZXD/p3mASRBAbASnl4Yg1FS0GgVAL4UL6089p90JnDiXVYArISnF8ZglBQ02qXnAL59yvJESJrSK1xauew/pVuk/jmgAFgJTy+MwSgpaLTLTwK/6JnACyhaWvnsP6FbJB8QSuz/lG5hwtMLYzBKChrt8gA4/wb4sPhDiyndfKkoWFo57T+dWzicEkh8ooHRLUx4emEMRklBo11xGWiWnwClmy8VxUorr/1XHQBp54FZkuZu7Dzw9MIYCoAlvOgkME6h0srvSDUHQNrmGEuafH/rgKcXxlAALEEBsIASpVXEjqoOgKSMJK19h9fC0wtjKAAW8PW9hoBw8pdWIS/abwDUv8cr4emFMRQAOJdJAW+Wfmg5pZsvFblLq5gPTUi2fH+qd1MFAB0KgFmGE8Fy3Bu0dPOlIm9pFXQhW7I1xli7mSoA6FAAzDIMAD0QBidnaRX1IFOydc5YuZcqAOhQAMzSD4AMZ4C/85RevtIq7ECWZNVZY5JdUQDQoQCojtLNl4pcpVXcf1oIgDT7oquA6FAAVEfp5ktFntKqwH4aCIBEO6N5AHQoAKqjdPOlIkdpVeE+9QdAqr3RTGA6FABRXm43APr6Ps8pAJrS8y+tSsxn1wHACU8vjMEoKWi0WABcTgNfA+DL2yyzAHhKz7u0anHXbVcBZfkWCoCF8PTCGIySgkYLBcC3T4f7xZ+nS/fJkQClmy8VvqVVjf1vmweQ51eCAmAhPL0wBqOkoNFCAfASTP46/63bQeN4llZF9r9pJnCmcSIFwEJ4emEMRklBo0UC4PwDIBj5//JWt4LA8Sutqux/i1tkO1OQaDOMbmHC0wtjMEoKGi04ESyc/KvnASzAq7Qqs/8mAsBrHgArPL0wBqOkoNGCARAO+px0O2gcn9Kqzv7bCACfmcC08PTCGIySgkarAPDFo7QqtP/CAZC1RRjdwoSnF8ZglBQ0WvAcQDjoc9QQEE760qrS/he5xeAbbA+ATL8f7jC6hQlPL4zBKClotOhVQM+TAKcstwMt3XypSFxaWZ1uEbhkI7tO5P+52oXRLUx4emEMRklBo4UC4DIP7H4d6OXPHJOBSzdfKpKWVr32v8AtDLtO5P+ZmobRLUx4emEMRklBo8VmAp8OIRmmAdCUXsLSqsL9J3cClcy06+0nADYHAP55Rrcw4emFMRglBY0WvBfQ5RYQd3I8D4yn9JKVVhX2P3OsvikAUuzTtjUuWAGjW5jw9MIYjJKCRgvfDfT+VJg89s9TeolKq4j9jzc647RtB8CSNTC6hQlPL4zBKClotLodtC9JSqvM0f/YEuestukAWLQKRrcw4emFMRglBY1WAeBLgtIqNPhjWGKdAZDgKiAFgAVPL4zBKClotAoAXzaXViH7Nz0xRQB4XLS5eYUKAAueXhiDUVLQaBUAvmwsrVL27xgAHtO2tq5QAWDB0wtjMEoKGq0CwJdNpVXO/j0DoJILmkIUABY8vTAGo6Sg0SoAfNlQWmV90vTEGZtsW7Il41KMbmHStqRLYJQUNFoFgC+rS6v0YbJ9UDxtk41LtmBcitEtTBqXdAGMkoJGqwDwZWVplbb/16mD4skda10yvMUZ3cKk30RRsAAAHdRJREFUdUlxGCUFjVYB4Muq0qrA/l97B8XA4TGPZDEY3cJEkrYMaLQKAF9WlFYd9v8a7AgyQM4jWQxGtzCRpC0DGq0CwJfFpVWN/T+BLpHhkSwGo1uYSNKWAY120b2Afvjx+0uGh8FcKN18qVhYWhXaf3g6eGbXeCSLwegWJpK0ZUCjBQPgdiu4SwDkuRs0TektKq0a7V8BMITRLUwkacuARosFwPNWoMeDngewBLy08OsQM6MA6MPoFiaStGVAo4UC4Nunw+HXf/ry9nIv6KOeCLYEtLQqs/9wbxQAfRjdwkSStgxotFAA3B4DfAuA/gOC3SjdfKnASqsu9x9Mi1oZALV9p2QwuoUJTy+MwSgpaLRQABwPl1O/9wA4/xzIcCK4dPOlAimt6qyy7/cj/zf3dygZcOVoozC6hQlPL4zBKClotEgAnC3/csx/D4DzT4AMY0Clmy8V8dKqzycHjj8MANvaB5IBvxlahdEtTHh6YQxGSUGjRQLg6/vred8uAE4KAJxYadVokhOOf39nwtr7kkGjRo3C6BYmPL0wBqOkoNEqAHyZL606HdIe8xnT238FAB08vTAGo6Sg0a4YAjrqHADOXGnV6o9j955IgHAhBQAdPL0wBqOkoNGCJ4Evx/z3ADj/Hniz3thRSjdfKqZLq153NN07lgAKADp4emEMRklBo0UvA33TBcBlTkCGmWClmy8VU6VVtTda5h37DaAAoIOnF8ZglBQ0Wmwm8HX21zUAXg6HHCNANKVnl1btzmh497IA0FVABPD0whiMkoJGu+hWEDdyTASmKT2rtBowxvEuLgwAzQNoH55eGINRUtBowZvBXQZ+cvo/TemNS6tRX1waAK1+zziMbmHC0wtjMEoKGi18O+h7BOSxf57SG5ZWu7b4dHssAGhhdAsTSdoyoNHqgTC+9EurXft/NR4RGfq/3IIPSdoyoNEqAHwJS6tp+3/t7f/I/+UWfEjSlgGNVgHgy7O0mrL/6M4O/V9uwYckbRnQaMEAOPUO+XQrCJiutJqyf+QSnuECPJLFYHQLE0naMqDRwg+EUQCs4lpacTutiuHBPQSPZDEY3cJEkrYMaLRQALwcFAAr+dyc/WMPgBn9L49kMRjdwkSStgxotODN4HLc/qdH6eZLxefG3N86vzu9UPAOj2QxGN3CRJK2DGi04O2gc9z9oUfp5ktEc/Y/uMIzttDzLQfJKm08RrcwoemFURglBY0WDIAMTwHu85mBq4OV3omF9AMguszjvfSSze6C8IekF+4U0GgXPA8gK6XzMwE3+yq9F0tBfgFYCySXLH4eohDNSboWil4IwSgpaLTgSeDcpwDaL727d1VTWqiXLhoBcgwA4EREIaqR1BuCXgjCKClotFAA3J8JmZPSzbeRh3HVUlqwlwL+rwDYB833QhhGSUGjxSaCfXmbexCodPNtIrCtSkprgZkCxqsA2AWN98IFMEoKGi04E/icAAGaBzBHz7TqKK1FbrokAZ5vKQDoaLoXLoJRUtBoNRM4MQPLqqO0VgZANAGCdxQAdDTcCxfCKClotJoJnJSRYdVRWskDIMNM4Fr9vxJJM9BsL1wMo6Sg0WomcEIMv6qjtNIHwIj0klXq/5VImoFGe+EKGCUFjRacCKbLQOOYdlVHadUaAMA404q1OlOHpBlosheuglFS0GhrnQlcuvkWM+FW5Uqrt0NLLD1fANR6jD8Po1uYNNgLV8IoKWi0mgmchEkjK1ZaA3Nd4rWrRt9XSFbtKP88jG5h0lwvXA2jpKDRgieBdTO4OWZcLFNpjfZgZK5LnHaNLy+XbN0vjfIwuoVJY71wA4ySgkaLXgaqmcCTzFpYntIa+ehGc13xQQUAHU31wk0wSgoaLTYRLP8NoUs3H0zEwLKU1thI85urAoCOhnrhRhglBY0WPAncR/MA7sTtK0dpGU6qAPCD0S1MWumF22GUFDRaBcB6EPNSAEyiAKicNnphChglBY1WAbAWzLkUANO06f+UbmHSQi9MA6OkoNGCN4PLTunmi4EaV6EAyG+umgdAR/29MBWMkoJGqwBYA+5bpQIgu7k6zASuFEa3MKm9F6aDUVLQaBUAy1liW4WuAnrNbq51S5YSRrcwkaQtAxotHAD3EwEZhv+vlG6+aZYZa6F5APmpWbK0MLqFiSRtGdBowQAIzgPniYDSzTfFUqMtNRM4O/VKlhpGtzCRpC0DGi08EezJDz+u93WY0s1ns9xnGUvLpFbJ0iNJ6WCUFDRa/Ilgt5tBnM5/5ZgUXLr5LNYcZi8urfLH8uuoUzIPGN3CRJK2DGi0UACcAtO/hEGGGwOVbr4x65x5aWlVMJq/jhol84HRLUwkacuARgsFwDEc+M/zeJjSzTdkrS0vLK0Nl+/nDo7B9uqTzAtGtzCRpC0DGu2K5wFkuTl06ebrs95cl5WWeUX/oo8u/dhqhturTTI/GN3CRJK2DGi04K0gwkGf095uBbHFWTcHALjxDT8dVjHaXl2SecLoFiaStGVAo1UAxNhmq1sDALT1DT8dVjHeXk2S+cLoFiaStGVAo9UQ0DxbPXVjAKC2rgDIB6NbmEjSlgGNVieB59juqNsCAPZ1BUA+GN3CRJK2DGi0ugx0mhR+uu0qoDUBkCUDFAA7QJK2DGi0mgg2QSIr3TYPYGUA+CeAAmAHSNKWAY12xa0gstwMqHDrJfPRbTOBcU8vlgDdG8UlywajW5hI0pYBjVY3gzNI6KHbSmuBpRdKgMdruQUdkrRlQKPV7aBHJDXQjaW1wNAzB4BmAtMjSVsGNFo9EGZAYvvcWlqL/DxrAAyQW9AhSVsGNFoFQI/k5rm5tII9iu6cAiAHjG5hIklbBjRaNABeblcBfX2faQyoSJs5WGfC0opbuwIgB4xuYSJJWwY0WvwqoGsAfHl7yDENrEjpuRhnutICvF0BkANGtzCRpC0DGi0+D+B6N4jLNIAsCZC9vZxsM1lpQeZezv/lFnxI0pYBjRYKgJfgOZDnvwlnAru5Zt4AKPg8GbkFHZK0ZUCjBW8GF4z8f3lLdy8gR9PMHACrvkqSry+3oEOStgxotODtoJnvBup6zJw7ANaveeNa5BZ0SNKWAY12988DcB4yqT8AEq1WbkGHJG0Z0Gh3HgDuI+ZZrwLatNqNK5Zb0CFJWwY0WvAcQDjoc6QZAspwwnRRaXX7Y+/XOpsGTxsrAGAY3cJEkrYMaLToVUDPkwCnQ++MgBMZWijL9TJLSqvz4Sk/Xu3/OeYOyC3okKQtAxotFACXeWD360Avf+aYDOzePlnsf1FpHYYk2Hx8XQqApTC6hYkkbRnQaLGZwKeeMWWYBuBdepnsf0lpjfw/wQ4C61IALIXRLUwkacuARgveC+hyC4g7jylhrng2TbLja4DqA0BXAS2F0S1MJGnLgEa79HkAeezfs/Ry2v/GANi8p9Bq0qSN3IIOSdoyoNHu7XbQWd3/NUUAbNlbbC1J2kRuQYckbRnQaPcVALntP0kAbNjhRD8kEOQWdEjSlgGNdk8BkN/+t10FlDIB1q8CRG5BhyRtGdBol58EPmS5DjR9g5Sw/03zAFIOAm1YA4jcgg5J2jKg0WIB8NI3pAYDoIz9Lyit0O0TBkC2Ly63oEOStgxotFAAnAaG1FwAlLJ/vLTGVp8oAHIht6BDkrYMaLRQABzzzP4NSdkUJU0ULC3D6xUAlcLoFiaStGVAo13+QJg8pGuIshaKlZZp9k35v9yCD0naMqDRrnggTBZSNUNpB90QAAWf77gCuQUdkrRlQKPlDoDyBrolAOK7X/77PZBb0CFJWwY0WnAIqMkAqMEeNwUA+LFVO5YauQUdkrRlQKMFnweQ4REwfbY3QB3eOFVa/b1bFwBVnSSQW9AhSVsGNFr0eQC5fwJs/fq1GONEaQ2de5P/V/FF5RZ0SNKWAY0Wmwj25W3u3wDbvnwtrjhVWmPnXj8AVMlXlVvQIUlbBjRa8CRwn8ongtXiiRfM0gqtu9vZ5TutACgDo1uYSNKWAY2WLwBqccQbsQDY4OAKgDIwuoWJJG0Z0GjJAqAaP+wAA2DNLisAysDoFiaStGVAo6W6HXQ1bvgEDYBNCbBxH5Mgt6BDkrYMaLREAVCNF4ZYpWX5/5ZBoI27mAa5BR2StGVAo6UJgHqssIdrANT0peUWdEjSlgGNliQAKnLCPr4BUBFyCzokacuARksRABU7qAKADka3MJGkLQMa7XwAjK7/uVHXVUBV+ycaANl3LDVyCzokacuARtt8AFRun/NXAdV1HncTcgs6JGnLgEbbeABU756zt4J4/Jl1l3yQW9AhSVsGNNqmzwE0YJ5zN4PLuyfOyC3okKQtAxptwwHQhIkylpaJ3IIOSdoyoNE2GwBN2D9naZnILeiQpC0DGm2jAdCI/XOWloncgg5J2jKg0TYZAM3YP2dpmcgt6JCkLQMabYMB0JD9c5aWidyCDknaMqDRNhcATdk/Z2mZyC3okKQtAxptYwHQmP1zlpaJ3IIOSdoyoNE2FQDN2T9naZnILeiQpC0DGm07AdDmPRMYS8tEbkGHJG0Z0GhbCYBK7T+6V6PSqvN7bEduQYckbRnQaNsIgFpdM34rt2Fp0dz8bYjcgg5J2jKg0bYQANVaZnBXzykGpQV8olHkFnRI0pYBjbb+ACjkl8Bmg/ujTi7TLy3kE40it6BDkrYMaLS1B0Aps0RsWgEQILegQ5K2DGi0dQdAMauEfFoBECC3oEOStgxotDUHQDmjxIxaARAgt6BDkrYMaLT1BkBJm1QALEZuQYckbRnQaGsNgLImCRo1sJCuAqKD0S1MJGnLoEbrauPrKeuR6JF6fJnPz+XATzSK3IIOSdoyqNG62vh6yjYePFQTXeRzsDrsE41SWrJ8MLqFiSRtGdBoFQAmyYZqPqdc2SIyb7G4ZNlgdAsTSdoyoNEqAGxSWfbnUmd+c2+xvGS5YHQLE0naMqDRKgAmSGSfpQIg+yYrkCwTjG5hIklbBjRaBYAvhQIg/zZ5JIvB6BYmkrRlQKNVAPgSCwAnj1YA+MHoFiaStGVAo1UA+BIJAC+TVgD4wegWJpK0ZUCjVQD4Mh8Abi6tAPCD0S1MJGnLgEbrHwA/f/z9888zv7VfDSjdfKmYDQA/m1YA+MHoFiaStGVAe3YPgH/5+0cA/PTxym/+aLwaUrr5UlEoAHQVkB+MbmEiSVsG9GfvADj7fxcAf77+9cvvPv7tX0avRpRuvlSUCgDNA3CD0S1MJGnLgAbtHABng+8CoPspcH7rD8NXY0o3XypmZwK7DtTk9X+5BR+StGVAh/YNgJ8+fvybf7gHwM/PsZ/fDl+NKd18qRjdCygk/0i9HzySxWB0CxNJ2jKgRbsGwPnw/vf/+k/3APipG+z588X7+6/GlG6+VAzvBtqHx//lFnxI0pYBPdo3AP7uL9+7ADj/ez/U//njX/9z/5Xx0dLNl4pIadH4v9yCD0naMqBHu18FFATA/WTwL7+7BkDw6r7oxwDv3aqFq/+X3gkhxD7JFgDPy0Evlt9/dV90jwEghBDFKBIAH//Qf2V8rPQPqFQw/rg04ZEshiSlg1FS0J9r+gUQUrr5UsFYWiY8ksWQpHQwSgr6c03nAEJKN5/BqtO149JiOes7oErJXGB0CxNJ2jKgP+cMgMd1P7/5Y/+V8bHSzTdm3QU7o9IqeN2P64ZrlMwHRrcwkaQtA/pztgAIr/w//9F/NaZ0841Yecn+sLQKXvnvu+EKJXOC0S1MJGnLgP6cLwDangm8dtLuoLQKzv113nB9knnB6BYmkrRlQH/OFwBt3wuo+QDw3nJ9knnB6BYmkrRlQH/OFwBt3w1UARChPsm8YHQLE0naMqA/ZwyApp8HoACIUJ9kXjC6hYkkbRnQn3MGQMtPBFMARKhPMi8Y3cJEkrYM6M+13oemdPMNWWuf1VwFpABIBaNbmEjSlgGNVgEAsdo965kH4Bw91UnmBqNbmEjSlgGNVgGAsP7ouaKZwL7RU5tkfjC6hYkkbRnQaBUAABuGT2oqLdfoqUwyR2qS1BVJ2jKg0e4zABZaIUkAuCK3oEOStgxotLsMgKVmrgCII7egQ5K2DGi0hAEQNerFbq4AiCO3oEOStgxotHwBEHXq5XauAIgjt6BDkrYMaLR0ARC36hV2vv4SSsbSMpFb0CFJWwY0WrYAANx9zfH86ksoGUvLRG5BhyRtGdBoFQAL1rtifxhLy0RuQYckbRnQaBUAvjCWloncgg5J2jKg0e4wALLej4extEzkFnRI0pYBjXaPAZDzfjyMpWUit6BDkrYMaLRsAYAd3mfzf8rSMpFb0CFJWwY0WroAKHe7TRPG0jKRW9AhSVsGNFq+ACh3u00LxtIykVvQIUlbBjRawgCoCsbSMuGRLIYkpYNRUtBoFQC+MJaWCY9kMSQpHYySgkarAPCFsbRMeCSLIUnpYJQUNFoFgC+MpWXCI1kMSUoHo6Sg0SoAfGEsLRMeyWJIUjoYJQWNVgHgC2NpmfBIFkOS0sEoKWi0CgBfGEvLhEeyGJKUDkZJQaNVAPjCWFomPJLFkKR0MEoKGq0CwBfG0jLhkSyGJKWDUVLQaBUAvjCWlgmPZDEkKR2MkoJGqwDwhbG0THgkiyFJ6WCUFDRaBYAvjKVlwiNZDElKB6OkoNEqAHxhLC0THsliSFI6GCUFjVYB4AtjaZnwSBZDktLBKClotAoAXxhLy4RHshiSlA5GSUGjVQD4wlhaJjySxZCkdDBKChqtAsAXxtIy4ZEshiSlg1FS0GgVAL4wlpYJj2QxJCkdjJKCRqsA8IWxtEx4JIshSelglBQ0WgWAL4ylZcIjWQxJSgejpKDRKgB8YSwtEx7JYkhSOhglBY1WAeALY2mZ8EgWQ5LSwSgpaLQKAF8YS8uER7IYkpQORklBo1UA+MJYWiY8ksWQpHQwSgoarQLAF8bSMuGRLIYkpYNRUtBoaw0A0RgfP5beA5EYSboDFAAiCXILOiTpDlAAiCTILeiQpDtAASCSILegQ5LuAAWASILcgg5JugMUACIJcgs6JOkOUACIJMgt6JCkO0ABIJIgt6BDku4ABYBIgtyCDkm6AxQAIglyCzok6Q5QAIgkyC3okKQ7QAEgkiC3oEOS7gAFgBBC7BQFgBBC7BQFgBBC7BQFgBBC7BQFgBBC7BQFgBBC7BQFgBBC7BQFgBBC7BQFgBBC7BQFgFjMzx9///zzzG+RV6JKVmkpZWlQAIil/MvfP0zjp49XfvPH6CtRJau0lLI8KADEQs6e0ZnGn69//fK7j3/7l8grUSWrtJSyRCgAxDLOHb8zje7w8fzWH+ZfiSpZpaWUZUIBIBZx/vn/N/9wN42fn2MCv51/JWpknZZSlgkFgFjC+bDv9//6T3fT+KkbBPjzxRPmXokKWamllGVCASCW8Mvf/eV7Zxrnf++HgD9//Ot/nntVYk9FjHVaSlkqFABiKYFp3E8g/vK7qzFMviqxlwJhuZZSlgoFgFhKZwHPSwgvVjD3qsReCoTlWkpZKhQAYimWaXz8w9yrEnspEJZrKWWpUACIpegXAA/6BbBzFABiKToHwIPOAewcBYBYinXlyG/+OPeqxF4KhOVaSlkqFABiKda14+c/5l6JSlmhpZRlQgEglvIwDc0XbZ4VWkpZJhQAYikP09AdY5pnhZZSlgkFgFjK8zSg7hnZOmu0lLJEKADEUp6mobvGt84qLaUsDwoAsZTANPTcqMZZp6WUpUEBIIQQO0UBIIQQO0UBIIQQO0UBIIQQO0UBIIQQO0UBIIQQO0UBIIQQO0UBIIQQO0UBIIQQO0UBIIQQO0UBIIQQO0UBIPz4+v7w6z+V3gkHvn06/Oofr399/e/oZ14Oh3fBy1Pw8svbw4VnU70cntw3FGO4I+EqHlvC3xQ7QQEg/KAPgCPumJMBcBqbfc+TDz/8GF/7aEf6q7j/L/6m2AkKAOEHewCcFvjlVACcQve9e/3Akw8fYisf74i5CvxNsRMUAMIP1gDoSBAA5yYKbf/WXOGyR+Q3gBkAH4L/vQUW/qbYCQoA4YcC4MlEAJzfftO9dzkX8GG07OXdWCvOB8BjxfibYicoAIQfCoAnEwFwDA/vuzToL3uKj8tEAuDyM+LNojfFTlAACD+6ALiNmV8Hm4NAOFmvOzO6ffTlMf7x0h+ePpnD1efj1zfXQZXQxPqLHs+rPY1HVYb7cgyH5EervX2fbvT+w/gTBkgAXDc0XtYy5XBz/R15bO5D79XY6+feFDtBASD8CAPgf7/t29SXweurwR4eY9CXj/6/T92FKd1/vhl8djBefTHQ+/91tjpc9BwA/3fk1MN9eZ4Xve7+aLXjABh8wgAYAppZdvBF+5tTAIi1KACEH0EAPLl56MPvR69vZnf56H/tlvgfj89frerh10NjPP/Hv/vUW+1o0ePhr94GUfLd2pfwuph31mpHATD8hMFEAFx2cPSzYbDsef/6iww2Fw+A422F+JtiJygAhB/9AOiOlO9DH9c3Lt77pnt9t6PrG1dTvnj2zZ0vf1288s19bVdDPA2M/Gb3l0W7/xkvejQO0gf7cvn3cYXOZVlrtb3LQEefMJi6DPQYRo+97OVbhOY+3pxOAot1KACEH2EA3I/VXx4m+zjyv/xxNp7ngPvlr6eVng7BX/cRj7vJDg+NnxfM3NcyXvQ4dujhvpzCoaYueXqrHQbA6BMGkxPBnofzj09GAmC8ufkAeIQe/qbYCQoA4UcYAHeDOlvW3cTvHvbSjaF0x/I397sEwIduJXeXP/91sbvgvOnA+J4xch/KGC9qDHEM96W3//cA6K92eiLY/RMGM7eCOD4i4G6+kQAYby46EWw8tjX/ptgJCgDhRxAAwUnZy1tDqz0+X98uhXk66fCv8NrS7rKZ58vuv66ubix6HHvpcF86rgNX9wDorXYyAB6fMJgJgO/PYfzbh8EAeG4uFgDmDOO5N8VOUAAIP6YD4Nh3mmCB+xKzARASjlgEefC8dLO/6HFsccZbz/sz3AOgt1orAPqfMJgPgPsS5jyAXuvYm5sPgMeH8TfFTlAACD+WBMDDN28fmg6A4MKe+QD49Z+MRZEACD82DoDzWkYBMPyEwcCjX8YBcH3zuiuxq4BGm4tNBFv8ptgJCgDhh8svgGBAZsjwUN1YFAiA7nfDr/7xeQ5g/hfA6BMGA48+Pi5p/TB+d/xrofc1xptTAIh1KACEH6vOAdyG2WeHgKbuV2acAxguagTAcF9eDoNNR88BjD4xv29Bi7yMfhcYATCcCTzenAJArEMBIPyYDoDelYxvelcBHburgCYCYPqamPAizGuiGIvaA/7hvgQ7e3oMAfVWOwyA8Sfstujf9KFbQ7j80YqF02Hy59JJQ0BiEwoA4cd0ADyvrLz5vTUPYCIAggNg4zLQu5ffDXa8qBEAg3157uxlqCWcgfZY7WQAdJ+wCGcgXJLpTfeB5w+Dzs9HdwPt/QAwNqcAEOtQAAg/pgOgm317+fdqYeFM4MsCMwFwHQK/etbRuqdPd3ecx3zi3qJGAAz35fi04UM3S62/2iAAui/T/4TFdS3Ph8DcFzs9Lv257Ww3pNT5+fVSz8Eqx5sbniVQAAgMBYDwYyYAgis0e+dRu+taZgKg9xCt3oHveeV/1b/522hRKwAG+zJ6RtdotV0A3K7G+WA81Wt04c734QX35iN571EQmZs13ly3I72NKQBEFAWA8GMmAJ6u++6xbOjccwEQXAbZH/i4jOGfwrWMF7UCYLgvj5m5/+F2DmG02i4Abvc4ejf+hBkAPeP+YL47ujtE+FWejDb32JEHCgCBoAAQfswFwN35AncbPg9gOgA6ixzeuLi79nN4g+NDeIrZHKLp78stNd5154dHq31MW7ga75vxJ+wAeMTR4L+6/HnsdBgA5iWvw809dyRYhQJARFEACB4Gd4YoutoXzaoV9aMAEDzUFABHPVxd1I8CQPBQUQB8+6TbKov6UQAIHioKgBcNrIsGUAAIHuoJgG+f5P+iARQAgod6AkCIJlAACCHETlEACCHETlEACCHETlEACCHETlEACCHETlEACCHETlEACCHETlEACCHETlEACCHETlEACCHETlEACCHETlEACCHETlEACCHETlEACCHETlEACCHETlEACCHETlEACCHETlEACCHETlEACCHETlEACCHETlEACCHETlEACCHETvn/kiNdjwBQXaUAAAAASUVORK5CYII=" title="plot of chunk plotincome" alt="plot of chunk plotincome" width="768" /></p>
+<pre class="r"><code>## Plot psavers vs income per capita.
+##      Rich countries below the line, poor countries above
+qplot(inccap, psav, data=inc, geom=&quot;point&quot;, log=&quot;xy&quot;)+geom_abline(intercept=0,slope=1)+
+  labs(list(title=&quot;Income levels: financially excluded proportion vs. average&quot;, x=&quot;Income per capita, USD at PPP&quot;, y=&quot;Income cutoff among financially excluded&quot;))</code></pre>
+<pre><code>## Warning: Removed 16 rows containing missing values (geom_point).</code></pre>
+<p><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABgAAAANgCAMAAADd/FOkAAAAz1BMVEUAAAAAADoAAGYAOjoAOmYAOpAAZmYAZpAAZrY6AAA6ZmY6kLY6kNtmAABmAGZmOgBmOpBmZmZmZrZmtttmtv9/f39/f5V/f6t/lat/lcF/q9aQOgCQOmaQZgCQkGaQkNuQtpCQ29uQ2/+Vf3+VlcGVweurf3+rlX+r1v+2ZgC2tv+225C2/7a2///BlX/B6//Wq3/W///bkDrbtmbb25Db/7bb/9vb///l5eXrwZXr///y8vL/tmb/1qv/25D/68H//7b//9b//9v//+v///9xqjuSAAAACXBIWXMAAB2HAAAdhwGP5fFlAAAgAElEQVR4nO29a4PjyHmsyZF3fLrOdnvPpduy1eu9jCxb3F3ZEnfXM1Jzatrt+v+/6RAgQCaAF8gAkNdAPB+6q1i4MePNCDKBBE5vQgghDskp9wEIIYTIgwJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigJACCEOigIgBtfT6Vd/yH0Qb2+vL6fTxxzb+Pb51PAxxAHMsLzpx18jHgFwGC5fP4BLwgvG5Ot/u/8fu/1EZhQAMTh4ADTr3PjuBwXAk6oC4Hx6d/9BAUCOAiAGxw6A7vP/rQkUAE9qCoDzSQFwEBQAMTh2ADSrfP/jzv3uQwGwi2cACHIUADE4dgBcm9GfnbvdiQJgFwqAw6AAiIECQAEwRgEgCkQBEAMFgAJgjAJAFIgCIAbPALi2w+H3y2IGfarp5qOh8u7k6Tt3M+/6l7slz/ezq85a922beTNwp+FyQ5N2PGe8OXcbl9P0AMde1V0BdHq8749AMzgvog02eG+TrYwD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" title="plot of chunk plotincome" alt="plot of chunk plotincome" width="768" /></p>
+</div>
+<div id="simulate-distributions" class="section level2">
+<h2>Simulate distributions</h2>
+<p>Now let’s take the distribution parameters mu and sigma for each country. Using a large-enough population, simulate the share of income accruing to the bottom quintile of the distribution.</p>
+<pre class="r"><code># inc.siminput &lt;- inc[,.SD, .SDcols=c(&quot;mu&quot;,&quot;sigma&quot;)]
+
+## Make a list of simulated income data
+##      Each of length 10^6, using the observed values of mu and sigma
+test &lt;- mapply(rlnorm, rep(1e6, nrow(inc)), inc$mu, inc$sigma)
+##      It's very large.
+dim(test)</code></pre>
+<pre><code>## [1] 1000000     138</code></pre>
+<pre class="r"><code>object.size(test)/1e6</code></pre>
+<pre><code>## 1104.0002 bytes</code></pre>
+<pre class="r"><code>##      It took several seconds to compute the summary statistics.
+# summary(test)
+test &lt;- data.table(test)
+
+test.sums &lt;- colSums(test)
+
+str(inc$p20)</code></pre>
+<pre><code>##  num [1:138] 234 1592 1051 604 1700 ...</code></pre>
+<pre class="r"><code>head(inc$p20)</code></pre>
+<pre><code>## [1]   234.5  1591.8  1051.1   603.5  1700.3 21002.9</code></pre>
+<pre class="r"><code>##    How to use data.table to get fast sums of subsets?
+test[V1&lt;235,sum(V1)]</code></pre>
+<pre><code>## [1] 36510408</code></pre>
+<pre class="r"><code>## You can run this code to get the sum of bottom quintile values in a single column
+myvar &lt;- &quot;V1&quot;
+test[get(myvar)&lt;234.4945, sum(.SD), .SDcols=myvar]</code></pre>
+<pre><code>## [1] 36227776</code></pre>
+<pre class="r"><code># What if I just had the number 1 as an input?
+test[get(paste(&quot;V&quot;,1,sep=&quot;&quot;))&lt;inc$p20[1], sum(.SD), .SDcols=paste(&quot;V&quot;,1,sep=&quot;&quot;)]</code></pre>
+<pre><code>## [1] 36227776</code></pre>
+<pre class="r"><code>## Write a function to do this.
+calc.p20sum &lt;- function(x) test[get(paste(&quot;V&quot;,x,sep=&quot;&quot;))&lt;inc$p20[x], sum(.SD), .SDcols=paste(&quot;V&quot;,x,sep=&quot;&quot;)]
+
+# Does it still work? Yes. :)
+calc.p20sum(1)</code></pre>
+<pre><code>## [1] 36227776</code></pre>
+<pre class="r"><code>test.sump20 &lt;- sapply(c(1:length(inc$p20)), calc.p20sum)
+summary(test.sump20)</code></pre>
 <pre><code>##     Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
-## 0.00e+00 6.80e+01 1.91e+03 7.47e+08 9.70e+05 4.67e+10</code></pre>
-<pre class="r"><code>toy &lt;- toy[order(toy)]
-#     Create a cumulative sum of identical observations for utopia
-utopia &lt;- seq(0, sum(toy), length.out=Nobs)
-toy.df &lt;- data.frame(toy, cumsum(toy), utopia)
+## 1.02e+07 3.99e+07 1.02e+08 5.17e+08 3.18e+08 6.37e+09</code></pre>
+<pre class="r"><code>test.p20share &lt;- test.sump20/test.sums
+test.p20share *100</code></pre>
+<pre><code>##    V1    V2    V3    V4    V5    V6    V7    V8    V9   V10   V11   V12 
+## 8.901 7.957 7.246 3.522 3.813 8.529 6.979 7.666 7.461 7.428 5.741 7.874 
+##   V13   V14   V15   V16   V17   V18   V19   V20   V21   V22   V23   V24 
+## 7.369 5.439 2.514 2.526 5.414 2.050 8.782 7.547 4.694 3.638 4.834 7.251 
+##   V25   V26   V27   V28   V29   V30   V31   V32   V33   V34   V35   V36 
+## 4.407 3.139 5.531 5.366 2.446 3.764 4.160 9.412 8.775 5.672 3.622 3.257 
+##   V37   V38   V39   V40   V41   V42   V43   V44   V45   V46   V47   V48 
+## 6.688 7.721 6.975 7.964 9.236 4.608 1.974 5.152 5.435 5.050 4.127 6.180 
+##   V49   V50   V51   V52   V53   V54   V55   V56   V57   V58   V59   V60 
+## 7.080 2.741 6.752 2.386 7.913 2.213 8.712 7.090 7.122 5.861 7.254 8.253 
+##   V61   V62   V63   V64   V65   V66   V67   V68   V69   V70   V71   V72 
+## 6.070 6.627 2.904 6.659 4.054 6.710 6.074 1.600 7.654 6.864 5.841 6.120 
+##   V73   V74   V75   V76   V77   V78   V79   V80   V81   V82   V83   V84 
+## 3.076 7.228 8.082 6.596 5.500 6.855 8.274 4.564 5.553 6.279 7.010 5.614 
+##   V85   V86   V87   V88   V89   V90   V91   V92   V93   V94   V95   V96 
+## 6.646 6.296 5.077 3.851 4.897 4.299 1.796 6.507 5.017 4.990 9.585 6.061 
+##   V97   V98   V99  V100  V101  V102  V103  V104  V105  V106  V107  V108 
+## 2.868 3.451 4.759 8.055 7.146 6.496 3.061 5.407 8.251 8.067 5.806 3.311 
+##  V109  V110  V111  V112  V113  V114  V115  V116  V117  V118  V119  V120 
+## 2.920 6.808 9.804 8.575 8.967 5.901 5.599 4.481 5.151 3.867 6.708 3.432 
+##  V121  V122  V123  V124  V125  V126  V127  V128  V129  V130  V131  V132 
+## 5.315 5.635 5.368 7.654 8.127 5.840 5.475 6.477 8.905 4.741 5.514 4.398 
+##  V133  V134  V135  V136  V137  V138 
+## 6.740 4.047 6.559 6.642 1.702 3.406</code></pre>
+<pre class="r"><code>## And to do the same thing for the proportion saving:
+  
+## This function returns the gross income beneath the nth percentile of income,
+##      Where n is the percentage of those that do not save.
+calc.finexsum &lt;- function(x) test[get(paste(&quot;V&quot;,x,sep=&quot;&quot;))&lt;inc$psav[x], sum(.SD), .SDcols=paste(&quot;V&quot;,x,sep=&quot;&quot;)]
 
-head(toy.df)</code></pre>
-<pre><code>##         toy cumsum.toy.    utopia
-## 1 3.536e-05   3.536e-05 0.000e+00
-## 2 3.980e-05   7.516e-05 7.548e+08
-## 3 3.315e-04   4.067e-04 1.510e+09
-## 4 3.991e-04   8.058e-04 2.264e+09
-## 5 4.801e-04   1.286e-03 3.019e+09
-## 6 6.286e-04   1.915e-03 3.774e+09</code></pre>
-<pre class="r"><code>qplot(utopia, cumsum.toy., data=toy.df) + geom_abline(a=0, b=1)  + 
-  labs(list(title=&quot;Lorenz curve and utopia line for modeled income data&quot;, x=&quot;In Utopia everyone has identical income.&quot;,y=&quot;Income modeled from a lognormal distribution\n calculated from Gini = 0.35&quot;))</code></pre>
-<p><img src="data:image/png;base64,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" title="plot of chunk lognormal" alt="plot of chunk lognormal" width="672" /></p>
-<pre class="r"><code>toy.df$diff &lt;- toy.df$utopia - toy.df$cumsum.toy.
+# Does it still work? Yes. :)
+calc.finexsum(1)</code></pre>
+<pre><code>## [1] 374433331</code></pre>
+<pre class="r"><code># calc.finexsum(17)
 
-cat(&quot;This model predicts a Gini coefficient of &quot;, mean(toy.df$diff)/nrow(toy.df),&quot; using the function rnorm() and the Kemp-Benedict formula for calculating sigma from Gini.&quot;)</code></pre>
-<pre><code>## This model predicts a Gini coefficient of  361456207  using the function rnorm() and the Kemp-Benedict formula for calculating sigma from Gini.</code></pre>
-<pre class="r"><code>summary(toy.df)</code></pre>
-<pre><code>##       toy            cumsum.toy.           utopia        
-##  Min.   :0.00e+00   Min.   :0.00e+00   Min.   :0.00e+00  
-##  1st Qu.:6.80e+01   1st Qu.:3.00e+02   1st Qu.:1.87e+10  
-##  Median :1.91e+03   Median :1.32e+04   Median :3.74e+10  
-##  Mean   :7.47e+08   Mean   :1.22e+09   Mean   :3.74e+10  
-##  3rd Qu.:9.70e+05   3rd Qu.:5.11e+06   3rd Qu.:5.60e+10  
-##  Max.   :4.67e+10   Max.   :7.47e+10   Max.   :7.47e+10  
-##       diff         
-##  Min.   :0.00e+00  
-##  1st Qu.:1.79e+10  
-##  Median :3.66e+10  
-##  Mean   :3.61e+10  
-##  3rd Qu.:5.45e+10  
-##  Max.   :6.95e+10</code></pre>
+# inc$psav
+
+## Running the same command as above threw an error
+##      Not all the psav observations are defined.
+##      Need to substitute something when undefined.....
+test.sumfinex &lt;- sapply(which(!is.na(inc$psav)), calc.finexsum)
+summary(test.sumfinex)</code></pre>
+<pre><code>##     Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
+## 1.23e+08 5.60e+08 1.45e+09 3.16e+09 4.23e+09 2.77e+10</code></pre>
+<pre class="r"><code>test.finexshare &lt;- rep(NA, nrow(inc))
+test.finexshare[which(!is.na(inc$psav))] &lt;- test.sumfinex / test.sums[which(!is.na(inc$psav))]
+
+options(digits=3)
+test.finexshare*100</code></pre>
+<pre><code>##   [1] 92.0 78.9 96.3 51.3 80.0 28.5 93.4 83.2 64.4 33.9 75.1 86.2 89.1 76.2
+##  [15] 43.4 56.0   NA 41.0 83.6 25.0 91.0 84.5 78.2   NA   NA 55.3 70.2 38.0
+##  [29] 58.0 46.5   NA 45.8 25.5 86.1 51.5 52.2 45.9 97.0 40.0   NA 26.1   NA
+##  [43]   NA 71.7 94.0 57.6   NA 91.0 58.7 57.5   NA 59.1 72.4 39.8 66.6 65.3
+##  [57] 25.5 48.3 71.8 85.5 55.8 63.8 29.4 76.7 43.2 95.6 95.5 47.7 81.9 58.6
+##  [71] 44.1 64.7 64.9 58.1 27.1 67.3 65.8 87.6 90.2 91.3 75.0 84.3 53.9 78.1
+##  [85] 43.7   NA 72.3 71.6 33.1 52.5   NA 94.5 46.7 76.0   NA 71.9 53.7 65.4
+##  [99] 58.8 94.8 61.6 82.3 60.6 45.9 79.3 90.3 69.2 47.0   NA 88.0 21.3 51.4
+## [113] 43.5 63.2 85.1   NA   NA 58.1 83.7 47.8 76.2 85.3 27.8 98.6   NA 82.0
+## [127] 83.4 69.3 86.5 56.0 22.1 76.5 95.9 57.8 77.5 94.9 30.6 58.1</code></pre>
 </div>
 <div id="quantile-estimation" class="section level2">
 <h2>Quantile estimation</h2>
@@ -141,336 +409,324 @@ cat(&quot;This model predicts a Gini coefficient of &quot;, mean(toy.df$diff)/nr
 <pre class="r"><code>## Calculate mean and variance
 ##        Sufficient to model the distribution
 inc2010[,mu:=inccap]</code></pre>
-<pre><code>##      iso2c                                        country year    income
-##   1:    1A                                     Arab World 2010 1.174e+12
-##   2:    1W                                          World 2010 4.742e+13
-##   3:    4E          East Asia &amp; Pacific (developing only) 2010 3.584e+12
-##   4:    7E        Europe &amp; Central Asia (developing only) 2010 1.006e+12
-##   5:    8S                                     South Asia 2010 1.164e+12
-##  ---                                                                    
-## 254:    ZG         Sub-Saharan Africa (all income levels) 2010 6.641e+11
-## 255:    ZJ  Latin America &amp; Caribbean (all income levels) 2010 2.863e+12
-## 256:    ZM                                         Zambia 2010 7.361e+09
-## 257:    ZQ Middle East &amp; North Africa (all income levels) 2010 1.471e+12
-## 258:    ZW                                       Zimbabwe 2010 6.142e+09
-##      inccap  gini    saving savrate savers     mu
-##   1: 4310.9   NaN       NaN   34.60    NaN 4310.9
-##   2: 7561.7   NaN       NaN   23.41 22.430 7561.7
-##   3: 2313.1   NaN       NaN   43.97 28.447 2313.1
-##   4: 4104.5   NaN       NaN   18.96  6.982 4104.5
-##   5:  839.7   NaN       NaN   30.30 11.091  839.7
-##  ---                                             
-## 254:  900.8   NaN       NaN   18.48    NaN  900.8
-## 255: 5788.2   NaN       NaN   19.05    NaN 5788.2
-## 256:  715.4 51.23 2.157e+09   17.17 11.766  715.4
-## 257: 4923.8   NaN       NaN   34.78    NaN 4923.8
-## 258:  490.0   NaN       NaN     NaN 17.268  490.0</code></pre>
+<pre><code>##      iso2c                                        country year   income
+##   1:    1A                                     Arab World 2010 1.17e+12
+##   2:    1W                                          World 2010 4.74e+13
+##   3:    4E          East Asia &amp; Pacific (developing only) 2010 3.58e+12
+##   4:    7E        Europe &amp; Central Asia (developing only) 2010 1.01e+12
+##   5:    8S                                     South Asia 2010 1.16e+12
+##  ---                                                                   
+## 254:    ZG         Sub-Saharan Africa (all income levels) 2010 6.64e+11
+## 255:    ZJ  Latin America &amp; Caribbean (all income levels) 2010 2.86e+12
+## 256:    ZM                                         Zambia 2010 7.36e+09
+## 257:    ZQ Middle East &amp; North Africa (all income levels) 2010 1.47e+12
+## 258:    ZW                                       Zimbabwe 2010 6.14e+09
+##      inccap gini   saving savrate savers   mu
+##   1:   4311  NaN      NaN    34.6    NaN 4311
+##   2:   7562  NaN      NaN    23.4  22.43 7562
+##   3:   2313  NaN      NaN    44.0  28.45 2313
+##   4:   4105  NaN      NaN    19.0   6.98 4105
+##   5:    840  NaN      NaN    30.3  11.09  840
+##  ---                                         
+## 254:    901  NaN      NaN    18.5    NaN  901
+## 255:   5788  NaN      NaN    19.0    NaN 5788
+## 256:    715 51.2 2.16e+09    17.2  11.77  715
+## 257:   4924  NaN      NaN    34.8    NaN 4924
+## 258:    490  NaN      NaN     NaN  17.27  490</code></pre>
 <pre class="r"><code>inc2010[,sigma:=sqrt(2)*qnorm((gini/100+1)/2)]</code></pre>
-<pre><code>##      iso2c                                        country year    income
-##   1:    1A                                     Arab World 2010 1.174e+12
-##   2:    1W                                          World 2010 4.742e+13
-##   3:    4E          East Asia &amp; Pacific (developing only) 2010 3.584e+12
-##   4:    7E        Europe &amp; Central Asia (developing only) 2010 1.006e+12
-##   5:    8S                                     South Asia 2010 1.164e+12
-##  ---                                                                    
-## 254:    ZG         Sub-Saharan Africa (all income levels) 2010 6.641e+11
-## 255:    ZJ  Latin America &amp; Caribbean (all income levels) 2010 2.863e+12
-## 256:    ZM                                         Zambia 2010 7.361e+09
-## 257:    ZQ Middle East &amp; North Africa (all income levels) 2010 1.471e+12
-## 258:    ZW                                       Zimbabwe 2010 6.142e+09
-##      inccap  gini    saving savrate savers     mu  sigma
-##   1: 4310.9   NaN       NaN   34.60    NaN 4310.9    NaN
-##   2: 7561.7   NaN       NaN   23.41 22.430 7561.7    NaN
-##   3: 2313.1   NaN       NaN   43.97 28.447 2313.1    NaN
-##   4: 4104.5   NaN       NaN   18.96  6.982 4104.5    NaN
-##   5:  839.7   NaN       NaN   30.30 11.091  839.7    NaN
-##  ---                                                    
-## 254:  900.8   NaN       NaN   18.48    NaN  900.8    NaN
-## 255: 5788.2   NaN       NaN   19.05    NaN 5788.2    NaN
-## 256:  715.4 51.23 2.157e+09   17.17 11.766  715.4 0.9815
-## 257: 4923.8   NaN       NaN   34.78    NaN 4923.8    NaN
-## 258:  490.0   NaN       NaN     NaN 17.268  490.0    NaN</code></pre>
+<pre><code>##      iso2c                                        country year   income
+##   1:    1A                                     Arab World 2010 1.17e+12
+##   2:    1W                                          World 2010 4.74e+13
+##   3:    4E          East Asia &amp; Pacific (developing only) 2010 3.58e+12
+##   4:    7E        Europe &amp; Central Asia (developing only) 2010 1.01e+12
+##   5:    8S                                     South Asia 2010 1.16e+12
+##  ---                                                                   
+## 254:    ZG         Sub-Saharan Africa (all income levels) 2010 6.64e+11
+## 255:    ZJ  Latin America &amp; Caribbean (all income levels) 2010 2.86e+12
+## 256:    ZM                                         Zambia 2010 7.36e+09
+## 257:    ZQ Middle East &amp; North Africa (all income levels) 2010 1.47e+12
+## 258:    ZW                                       Zimbabwe 2010 6.14e+09
+##      inccap gini   saving savrate savers   mu sigma
+##   1:   4311  NaN      NaN    34.6    NaN 4311   NaN
+##   2:   7562  NaN      NaN    23.4  22.43 7562   NaN
+##   3:   2313  NaN      NaN    44.0  28.45 2313   NaN
+##   4:   4105  NaN      NaN    19.0   6.98 4105   NaN
+##   5:    840  NaN      NaN    30.3  11.09  840   NaN
+##  ---                                               
+## 254:    901  NaN      NaN    18.5    NaN  901   NaN
+## 255:   5788  NaN      NaN    19.0    NaN 5788   NaN
+## 256:    715 51.2 2.16e+09    17.2  11.77  715 0.982
+## 257:   4924  NaN      NaN    34.8    NaN 4924   NaN
+## 258:    490  NaN      NaN     NaN  17.27  490   NaN</code></pre>
 <pre class="r"><code>## What are some percentiles worth knowing? 
 inc2010[,p20 :=.20]  ## 20th percentile</code></pre>
-<pre><code>##      iso2c                                        country year    income
-##   1:    1A                                     Arab World 2010 1.174e+12
-##   2:    1W                                          World 2010 4.742e+13
-##   3:    4E          East Asia &amp; Pacific (developing only) 2010 3.584e+12
-##   4:    7E        Europe &amp; Central Asia (developing only) 2010 1.006e+12
-##   5:    8S                                     South Asia 2010 1.164e+12
-##  ---                                                                    
-## 254:    ZG         Sub-Saharan Africa (all income levels) 2010 6.641e+11
-## 255:    ZJ  Latin America &amp; Caribbean (all income levels) 2010 2.863e+12
-## 256:    ZM                                         Zambia 2010 7.361e+09
-## 257:    ZQ Middle East &amp; North Africa (all income levels) 2010 1.471e+12
-## 258:    ZW                                       Zimbabwe 2010 6.142e+09
-##      inccap  gini    saving savrate savers     mu  sigma p20
-##   1: 4310.9   NaN       NaN   34.60    NaN 4310.9    NaN 0.2
-##   2: 7561.7   NaN       NaN   23.41 22.430 7561.7    NaN 0.2
-##   3: 2313.1   NaN       NaN   43.97 28.447 2313.1    NaN 0.2
-##   4: 4104.5   NaN       NaN   18.96  6.982 4104.5    NaN 0.2
-##   5:  839.7   NaN       NaN   30.30 11.091  839.7    NaN 0.2
-##  ---                                                        
-## 254:  900.8   NaN       NaN   18.48    NaN  900.8    NaN 0.2
-## 255: 5788.2   NaN       NaN   19.05    NaN 5788.2    NaN 0.2
-## 256:  715.4 51.23 2.157e+09   17.17 11.766  715.4 0.9815 0.2
-## 257: 4923.8   NaN       NaN   34.78    NaN 4923.8    NaN 0.2
-## 258:  490.0   NaN       NaN     NaN 17.268  490.0    NaN 0.2</code></pre>
+<pre><code>##      iso2c                                        country year   income
+##   1:    1A                                     Arab World 2010 1.17e+12
+##   2:    1W                                          World 2010 4.74e+13
+##   3:    4E          East Asia &amp; Pacific (developing only) 2010 3.58e+12
+##   4:    7E        Europe &amp; Central Asia (developing only) 2010 1.01e+12
+##   5:    8S                                     South Asia 2010 1.16e+12
+##  ---                                                                   
+## 254:    ZG         Sub-Saharan Africa (all income levels) 2010 6.64e+11
+## 255:    ZJ  Latin America &amp; Caribbean (all income levels) 2010 2.86e+12
+## 256:    ZM                                         Zambia 2010 7.36e+09
+## 257:    ZQ Middle East &amp; North Africa (all income levels) 2010 1.47e+12
+## 258:    ZW                                       Zimbabwe 2010 6.14e+09
+##      inccap gini   saving savrate savers   mu sigma p20
+##   1:   4311  NaN      NaN    34.6    NaN 4311   NaN 0.2
+##   2:   7562  NaN      NaN    23.4  22.43 7562   NaN 0.2
+##   3:   2313  NaN      NaN    44.0  28.45 2313   NaN 0.2
+##   4:   4105  NaN      NaN    19.0   6.98 4105   NaN 0.2
+##   5:    840  NaN      NaN    30.3  11.09  840   NaN 0.2
+##  ---                                                   
+## 254:    901  NaN      NaN    18.5    NaN  901   NaN 0.2
+## 255:   5788  NaN      NaN    19.0    NaN 5788   NaN 0.2
+## 256:    715 51.2 2.16e+09    17.2  11.77  715 0.982 0.2
+## 257:   4924  NaN      NaN    34.8    NaN 4924   NaN 0.2
+## 258:    490  NaN      NaN     NaN  17.27  490   NaN 0.2</code></pre>
 <pre class="r"><code>inc2010[,psav := 1- savers/100]  ## financially excluded</code></pre>
-<pre><code>##      iso2c                                        country year    income
-##   1:    1A                                     Arab World 2010 1.174e+12
-##   2:    1W                                          World 2010 4.742e+13
-##   3:    4E          East Asia &amp; Pacific (developing only) 2010 3.584e+12
-##   4:    7E        Europe &amp; Central Asia (developing only) 2010 1.006e+12
-##   5:    8S                                     South Asia 2010 1.164e+12
-##  ---                                                                    
-## 254:    ZG         Sub-Saharan Africa (all income levels) 2010 6.641e+11
-## 255:    ZJ  Latin America &amp; Caribbean (all income levels) 2010 2.863e+12
-## 256:    ZM                                         Zambia 2010 7.361e+09
-## 257:    ZQ Middle East &amp; North Africa (all income levels) 2010 1.471e+12
-## 258:    ZW                                       Zimbabwe 2010 6.142e+09
-##      inccap  gini    saving savrate savers     mu  sigma p20   psav
-##   1: 4310.9   NaN       NaN   34.60    NaN 4310.9    NaN 0.2    NaN
-##   2: 7561.7   NaN       NaN   23.41 22.430 7561.7    NaN 0.2 0.7757
-##   3: 2313.1   NaN       NaN   43.97 28.447 2313.1    NaN 0.2 0.7155
-##   4: 4104.5   NaN       NaN   18.96  6.982 4104.5    NaN 0.2 0.9302
-##   5:  839.7   NaN       NaN   30.30 11.091  839.7    NaN 0.2 0.8891
-##  ---                                                               
-## 254:  900.8   NaN       NaN   18.48    NaN  900.8    NaN 0.2    NaN
-## 255: 5788.2   NaN       NaN   19.05    NaN 5788.2    NaN 0.2    NaN
-## 256:  715.4 51.23 2.157e+09   17.17 11.766  715.4 0.9815 0.2 0.8823
-## 257: 4923.8   NaN       NaN   34.78    NaN 4923.8    NaN 0.2    NaN
-## 258:  490.0   NaN       NaN     NaN 17.268  490.0    NaN 0.2 0.8273</code></pre>
+<pre><code>##      iso2c                                        country year   income
+##   1:    1A                                     Arab World 2010 1.17e+12
+##   2:    1W                                          World 2010 4.74e+13
+##   3:    4E          East Asia &amp; Pacific (developing only) 2010 3.58e+12
+##   4:    7E        Europe &amp; Central Asia (developing only) 2010 1.01e+12
+##   5:    8S                                     South Asia 2010 1.16e+12
+##  ---                                                                   
+## 254:    ZG         Sub-Saharan Africa (all income levels) 2010 6.64e+11
+## 255:    ZJ  Latin America &amp; Caribbean (all income levels) 2010 2.86e+12
+## 256:    ZM                                         Zambia 2010 7.36e+09
+## 257:    ZQ Middle East &amp; North Africa (all income levels) 2010 1.47e+12
+## 258:    ZW                                       Zimbabwe 2010 6.14e+09
+##      inccap gini   saving savrate savers   mu sigma p20  psav
+##   1:   4311  NaN      NaN    34.6    NaN 4311   NaN 0.2   NaN
+##   2:   7562  NaN      NaN    23.4  22.43 7562   NaN 0.2 0.776
+##   3:   2313  NaN      NaN    44.0  28.45 2313   NaN 0.2 0.716
+##   4:   4105  NaN      NaN    19.0   6.98 4105   NaN 0.2 0.930
+##   5:    840  NaN      NaN    30.3  11.09  840   NaN 0.2 0.889
+##  ---                                                         
+## 254:    901  NaN      NaN    18.5    NaN  901   NaN 0.2   NaN
+## 255:   5788  NaN      NaN    19.0    NaN 5788   NaN 0.2   NaN
+## 256:    715 51.2 2.16e+09    17.2  11.77  715 0.982 0.2 0.882
+## 257:   4924  NaN      NaN    34.8    NaN 4924   NaN 0.2   NaN
+## 258:    490  NaN      NaN     NaN  17.27  490   NaN 0.2 0.827</code></pre>
 <pre class="r"><code>## What is the per capita income cutoff for the bottom quintile? 
 ##                          ... for financially excluded?
 inc2010[,inc.p20 := qlnorm(p20, meanlog=log(mu), sdlog=log(sigma))]</code></pre>
 <pre><code>## Warning: NaNs produced</code></pre>
-<pre><code>##      iso2c                                        country year    income
-##   1:    1A                                     Arab World 2010 1.174e+12
-##   2:    1W                                          World 2010 4.742e+13
-##   3:    4E          East Asia &amp; Pacific (developing only) 2010 3.584e+12
-##   4:    7E        Europe &amp; Central Asia (developing only) 2010 1.006e+12
-##   5:    8S                                     South Asia 2010 1.164e+12
-##  ---                                                                    
-## 254:    ZG         Sub-Saharan Africa (all income levels) 2010 6.641e+11
-## 255:    ZJ  Latin America &amp; Caribbean (all income levels) 2010 2.863e+12
-## 256:    ZM                                         Zambia 2010 7.361e+09
-## 257:    ZQ Middle East &amp; North Africa (all income levels) 2010 1.471e+12
-## 258:    ZW                                       Zimbabwe 2010 6.142e+09
-##      inccap  gini    saving savrate savers     mu  sigma p20   psav
-##   1: 4310.9   NaN       NaN   34.60    NaN 4310.9    NaN 0.2    NaN
-##   2: 7561.7   NaN       NaN   23.41 22.430 7561.7    NaN 0.2 0.7757
-##   3: 2313.1   NaN       NaN   43.97 28.447 2313.1    NaN 0.2 0.7155
-##   4: 4104.5   NaN       NaN   18.96  6.982 4104.5    NaN 0.2 0.9302
-##   5:  839.7   NaN       NaN   30.30 11.091  839.7    NaN 0.2 0.8891
-##  ---                                                               
-## 254:  900.8   NaN       NaN   18.48    NaN  900.8    NaN 0.2    NaN
-## 255: 5788.2   NaN       NaN   19.05    NaN 5788.2    NaN 0.2    NaN
-## 256:  715.4 51.23 2.157e+09   17.17 11.766  715.4 0.9815 0.2 0.8823
-## 257: 4923.8   NaN       NaN   34.78    NaN 4923.8    NaN 0.2    NaN
-## 258:  490.0   NaN       NaN     NaN 17.268  490.0    NaN 0.2 0.8273
-##      inc.p20
-##   1:     NaN
-##   2:     NaN
-##   3:     NaN
-##   4:     NaN
-##   5:     NaN
-##  ---        
-## 254:     NaN
-## 255:     NaN
-## 256:     NaN
-## 257:     NaN
-## 258:     NaN</code></pre>
+<pre><code>##      iso2c                                        country year   income
+##   1:    1A                                     Arab World 2010 1.17e+12
+##   2:    1W                                          World 2010 4.74e+13
+##   3:    4E          East Asia &amp; Pacific (developing only) 2010 3.58e+12
+##   4:    7E        Europe &amp; Central Asia (developing only) 2010 1.01e+12
+##   5:    8S                                     South Asia 2010 1.16e+12
+##  ---                                                                   
+## 254:    ZG         Sub-Saharan Africa (all income levels) 2010 6.64e+11
+## 255:    ZJ  Latin America &amp; Caribbean (all income levels) 2010 2.86e+12
+## 256:    ZM                                         Zambia 2010 7.36e+09
+## 257:    ZQ Middle East &amp; North Africa (all income levels) 2010 1.47e+12
+## 258:    ZW                                       Zimbabwe 2010 6.14e+09
+##      inccap gini   saving savrate savers   mu sigma p20  psav inc.p20
+##   1:   4311  NaN      NaN    34.6    NaN 4311   NaN 0.2   NaN     NaN
+##   2:   7562  NaN      NaN    23.4  22.43 7562   NaN 0.2 0.776     NaN
+##   3:   2313  NaN      NaN    44.0  28.45 2313   NaN 0.2 0.716     NaN
+##   4:   4105  NaN      NaN    19.0   6.98 4105   NaN 0.2 0.930     NaN
+##   5:    840  NaN      NaN    30.3  11.09  840   NaN 0.2 0.889     NaN
+##  ---                                                                 
+## 254:    901  NaN      NaN    18.5    NaN  901   NaN 0.2   NaN     NaN
+## 255:   5788  NaN      NaN    19.0    NaN 5788   NaN 0.2   NaN     NaN
+## 256:    715 51.2 2.16e+09    17.2  11.77  715 0.982 0.2 0.882     NaN
+## 257:   4924  NaN      NaN    34.8    NaN 4924   NaN 0.2   NaN     NaN
+## 258:    490  NaN      NaN     NaN  17.27  490   NaN 0.2 0.827     NaN</code></pre>
 <pre class="r"><code>inc2010[,inc.psav := qlnorm(psav, meanlog=log(mu), sdlog=log(sigma))]</code></pre>
 <pre><code>## Warning: NaNs produced</code></pre>
-<pre><code>##      iso2c                                        country year    income
-##   1:    1A                                     Arab World 2010 1.174e+12
-##   2:    1W                                          World 2010 4.742e+13
-##   3:    4E          East Asia &amp; Pacific (developing only) 2010 3.584e+12
-##   4:    7E        Europe &amp; Central Asia (developing only) 2010 1.006e+12
-##   5:    8S                                     South Asia 2010 1.164e+12
-##  ---                                                                    
-## 254:    ZG         Sub-Saharan Africa (all income levels) 2010 6.641e+11
-## 255:    ZJ  Latin America &amp; Caribbean (all income levels) 2010 2.863e+12
-## 256:    ZM                                         Zambia 2010 7.361e+09
-## 257:    ZQ Middle East &amp; North Africa (all income levels) 2010 1.471e+12
-## 258:    ZW                                       Zimbabwe 2010 6.142e+09
-##      inccap  gini    saving savrate savers     mu  sigma p20   psav
-##   1: 4310.9   NaN       NaN   34.60    NaN 4310.9    NaN 0.2    NaN
-##   2: 7561.7   NaN       NaN   23.41 22.430 7561.7    NaN 0.2 0.7757
-##   3: 2313.1   NaN       NaN   43.97 28.447 2313.1    NaN 0.2 0.7155
-##   4: 4104.5   NaN       NaN   18.96  6.982 4104.5    NaN 0.2 0.9302
-##   5:  839.7   NaN       NaN   30.30 11.091  839.7    NaN 0.2 0.8891
-##  ---                                                               
-## 254:  900.8   NaN       NaN   18.48    NaN  900.8    NaN 0.2    NaN
-## 255: 5788.2   NaN       NaN   19.05    NaN 5788.2    NaN 0.2    NaN
-## 256:  715.4 51.23 2.157e+09   17.17 11.766  715.4 0.9815 0.2 0.8823
-## 257: 4923.8   NaN       NaN   34.78    NaN 4923.8    NaN 0.2    NaN
-## 258:  490.0   NaN       NaN     NaN 17.268  490.0    NaN 0.2 0.8273
-##      inc.p20 inc.psav
-##   1:     NaN      NaN
-##   2:     NaN      NaN
-##   3:     NaN      NaN
-##   4:     NaN      NaN
-##   5:     NaN      NaN
-##  ---                 
-## 254:     NaN      NaN
-## 255:     NaN      NaN
-## 256:     NaN      NaN
-## 257:     NaN      NaN
-## 258:     NaN      NaN</code></pre>
+<pre><code>##      iso2c                                        country year   income
+##   1:    1A                                     Arab World 2010 1.17e+12
+##   2:    1W                                          World 2010 4.74e+13
+##   3:    4E          East Asia &amp; Pacific (developing only) 2010 3.58e+12
+##   4:    7E        Europe &amp; Central Asia (developing only) 2010 1.01e+12
+##   5:    8S                                     South Asia 2010 1.16e+12
+##  ---                                                                   
+## 254:    ZG         Sub-Saharan Africa (all income levels) 2010 6.64e+11
+## 255:    ZJ  Latin America &amp; Caribbean (all income levels) 2010 2.86e+12
+## 256:    ZM                                         Zambia 2010 7.36e+09
+## 257:    ZQ Middle East &amp; North Africa (all income levels) 2010 1.47e+12
+## 258:    ZW                                       Zimbabwe 2010 6.14e+09
+##      inccap gini   saving savrate savers   mu sigma p20  psav inc.p20
+##   1:   4311  NaN      NaN    34.6    NaN 4311   NaN 0.2   NaN     NaN
+##   2:   7562  NaN      NaN    23.4  22.43 7562   NaN 0.2 0.776     NaN
+##   3:   2313  NaN      NaN    44.0  28.45 2313   NaN 0.2 0.716     NaN
+##   4:   4105  NaN      NaN    19.0   6.98 4105   NaN 0.2 0.930     NaN
+##   5:    840  NaN      NaN    30.3  11.09  840   NaN 0.2 0.889     NaN
+##  ---                                                                 
+## 254:    901  NaN      NaN    18.5    NaN  901   NaN 0.2   NaN     NaN
+## 255:   5788  NaN      NaN    19.0    NaN 5788   NaN 0.2   NaN     NaN
+## 256:    715 51.2 2.16e+09    17.2  11.77  715 0.982 0.2 0.882     NaN
+## 257:   4924  NaN      NaN    34.8    NaN 4924   NaN 0.2   NaN     NaN
+## 258:    490  NaN      NaN     NaN  17.27  490   NaN 0.2 0.827     NaN
+##      inc.psav
+##   1:      NaN
+##   2:      NaN
+##   3:      NaN
+##   4:      NaN
+##   5:      NaN
+##  ---         
+## 254:      NaN
+## 255:      NaN
+## 256:      NaN
+## 257:      NaN
+## 258:      NaN</code></pre>
 <pre class="r"><code>##      Cutoffs a multiple of per capita income:
 inc2010[,incmult.p20 := inc.p20/inccap]</code></pre>
-<pre><code>##      iso2c                                        country year    income
-##   1:    1A                                     Arab World 2010 1.174e+12
-##   2:    1W                                          World 2010 4.742e+13
-##   3:    4E          East Asia &amp; Pacific (developing only) 2010 3.584e+12
-##   4:    7E        Europe &amp; Central Asia (developing only) 2010 1.006e+12
-##   5:    8S                                     South Asia 2010 1.164e+12
-##  ---                                                                    
-## 254:    ZG         Sub-Saharan Africa (all income levels) 2010 6.641e+11
-## 255:    ZJ  Latin America &amp; Caribbean (all income levels) 2010 2.863e+12
-## 256:    ZM                                         Zambia 2010 7.361e+09
-## 257:    ZQ Middle East &amp; North Africa (all income levels) 2010 1.471e+12
-## 258:    ZW                                       Zimbabwe 2010 6.142e+09
-##      inccap  gini    saving savrate savers     mu  sigma p20   psav
-##   1: 4310.9   NaN       NaN   34.60    NaN 4310.9    NaN 0.2    NaN
-##   2: 7561.7   NaN       NaN   23.41 22.430 7561.7    NaN 0.2 0.7757
-##   3: 2313.1   NaN       NaN   43.97 28.447 2313.1    NaN 0.2 0.7155
-##   4: 4104.5   NaN       NaN   18.96  6.982 4104.5    NaN 0.2 0.9302
-##   5:  839.7   NaN       NaN   30.30 11.091  839.7    NaN 0.2 0.8891
-##  ---                                                               
-## 254:  900.8   NaN       NaN   18.48    NaN  900.8    NaN 0.2    NaN
-## 255: 5788.2   NaN       NaN   19.05    NaN 5788.2    NaN 0.2    NaN
-## 256:  715.4 51.23 2.157e+09   17.17 11.766  715.4 0.9815 0.2 0.8823
-## 257: 4923.8   NaN       NaN   34.78    NaN 4923.8    NaN 0.2    NaN
-## 258:  490.0   NaN       NaN     NaN 17.268  490.0    NaN 0.2 0.8273
-##      inc.p20 inc.psav incmult.p20
-##   1:     NaN      NaN         NaN
-##   2:     NaN      NaN         NaN
-##   3:     NaN      NaN         NaN
-##   4:     NaN      NaN         NaN
-##   5:     NaN      NaN         NaN
-##  ---                             
-## 254:     NaN      NaN         NaN
-## 255:     NaN      NaN         NaN
-## 256:     NaN      NaN         NaN
-## 257:     NaN      NaN         NaN
-## 258:     NaN      NaN         NaN</code></pre>
+<pre><code>##      iso2c                                        country year   income
+##   1:    1A                                     Arab World 2010 1.17e+12
+##   2:    1W                                          World 2010 4.74e+13
+##   3:    4E          East Asia &amp; Pacific (developing only) 2010 3.58e+12
+##   4:    7E        Europe &amp; Central Asia (developing only) 2010 1.01e+12
+##   5:    8S                                     South Asia 2010 1.16e+12
+##  ---                                                                   
+## 254:    ZG         Sub-Saharan Africa (all income levels) 2010 6.64e+11
+## 255:    ZJ  Latin America &amp; Caribbean (all income levels) 2010 2.86e+12
+## 256:    ZM                                         Zambia 2010 7.36e+09
+## 257:    ZQ Middle East &amp; North Africa (all income levels) 2010 1.47e+12
+## 258:    ZW                                       Zimbabwe 2010 6.14e+09
+##      inccap gini   saving savrate savers   mu sigma p20  psav inc.p20
+##   1:   4311  NaN      NaN    34.6    NaN 4311   NaN 0.2   NaN     NaN
+##   2:   7562  NaN      NaN    23.4  22.43 7562   NaN 0.2 0.776     NaN
+##   3:   2313  NaN      NaN    44.0  28.45 2313   NaN 0.2 0.716     NaN
+##   4:   4105  NaN      NaN    19.0   6.98 4105   NaN 0.2 0.930     NaN
+##   5:    840  NaN      NaN    30.3  11.09  840   NaN 0.2 0.889     NaN
+##  ---                                                                 
+## 254:    901  NaN      NaN    18.5    NaN  901   NaN 0.2   NaN     NaN
+## 255:   5788  NaN      NaN    19.0    NaN 5788   NaN 0.2   NaN     NaN
+## 256:    715 51.2 2.16e+09    17.2  11.77  715 0.982 0.2 0.882     NaN
+## 257:   4924  NaN      NaN    34.8    NaN 4924   NaN 0.2   NaN     NaN
+## 258:    490  NaN      NaN     NaN  17.27  490   NaN 0.2 0.827     NaN
+##      inc.psav incmult.p20
+##   1:      NaN         NaN
+##   2:      NaN         NaN
+##   3:      NaN         NaN
+##   4:      NaN         NaN
+##   5:      NaN         NaN
+##  ---                     
+## 254:      NaN         NaN
+## 255:      NaN         NaN
+## 256:      NaN         NaN
+## 257:      NaN         NaN
+## 258:      NaN         NaN</code></pre>
 <pre class="r"><code>inc2010[,incmult.psav := inc.psav/inccap]</code></pre>
-<pre><code>##      iso2c                                        country year    income
-##   1:    1A                                     Arab World 2010 1.174e+12
-##   2:    1W                                          World 2010 4.742e+13
-##   3:    4E          East Asia &amp; Pacific (developing only) 2010 3.584e+12
-##   4:    7E        Europe &amp; Central Asia (developing only) 2010 1.006e+12
-##   5:    8S                                     South Asia 2010 1.164e+12
-##  ---                                                                    
-## 254:    ZG         Sub-Saharan Africa (all income levels) 2010 6.641e+11
-## 255:    ZJ  Latin America &amp; Caribbean (all income levels) 2010 2.863e+12
-## 256:    ZM                                         Zambia 2010 7.361e+09
-## 257:    ZQ Middle East &amp; North Africa (all income levels) 2010 1.471e+12
-## 258:    ZW                                       Zimbabwe 2010 6.142e+09
-##      inccap  gini    saving savrate savers     mu  sigma p20   psav
-##   1: 4310.9   NaN       NaN   34.60    NaN 4310.9    NaN 0.2    NaN
-##   2: 7561.7   NaN       NaN   23.41 22.430 7561.7    NaN 0.2 0.7757
-##   3: 2313.1   NaN       NaN   43.97 28.447 2313.1    NaN 0.2 0.7155
-##   4: 4104.5   NaN       NaN   18.96  6.982 4104.5    NaN 0.2 0.9302
-##   5:  839.7   NaN       NaN   30.30 11.091  839.7    NaN 0.2 0.8891
-##  ---                                                               
-## 254:  900.8   NaN       NaN   18.48    NaN  900.8    NaN 0.2    NaN
-## 255: 5788.2   NaN       NaN   19.05    NaN 5788.2    NaN 0.2    NaN
-## 256:  715.4 51.23 2.157e+09   17.17 11.766  715.4 0.9815 0.2 0.8823
-## 257: 4923.8   NaN       NaN   34.78    NaN 4923.8    NaN 0.2    NaN
-## 258:  490.0   NaN       NaN     NaN 17.268  490.0    NaN 0.2 0.8273
-##      inc.p20 inc.psav incmult.p20 incmult.psav
-##   1:     NaN      NaN         NaN          NaN
-##   2:     NaN      NaN         NaN          NaN
-##   3:     NaN      NaN         NaN          NaN
-##   4:     NaN      NaN         NaN          NaN
-##   5:     NaN      NaN         NaN          NaN
-##  ---                                          
-## 254:     NaN      NaN         NaN          NaN
-## 255:     NaN      NaN         NaN          NaN
-## 256:     NaN      NaN         NaN          NaN
-## 257:     NaN      NaN         NaN          NaN
-## 258:     NaN      NaN         NaN          NaN</code></pre>
+<pre><code>##      iso2c                                        country year   income
+##   1:    1A                                     Arab World 2010 1.17e+12
+##   2:    1W                                          World 2010 4.74e+13
+##   3:    4E          East Asia &amp; Pacific (developing only) 2010 3.58e+12
+##   4:    7E        Europe &amp; Central Asia (developing only) 2010 1.01e+12
+##   5:    8S                                     South Asia 2010 1.16e+12
+##  ---                                                                   
+## 254:    ZG         Sub-Saharan Africa (all income levels) 2010 6.64e+11
+## 255:    ZJ  Latin America &amp; Caribbean (all income levels) 2010 2.86e+12
+## 256:    ZM                                         Zambia 2010 7.36e+09
+## 257:    ZQ Middle East &amp; North Africa (all income levels) 2010 1.47e+12
+## 258:    ZW                                       Zimbabwe 2010 6.14e+09
+##      inccap gini   saving savrate savers   mu sigma p20  psav inc.p20
+##   1:   4311  NaN      NaN    34.6    NaN 4311   NaN 0.2   NaN     NaN
+##   2:   7562  NaN      NaN    23.4  22.43 7562   NaN 0.2 0.776     NaN
+##   3:   2313  NaN      NaN    44.0  28.45 2313   NaN 0.2 0.716     NaN
+##   4:   4105  NaN      NaN    19.0   6.98 4105   NaN 0.2 0.930     NaN
+##   5:    840  NaN      NaN    30.3  11.09  840   NaN 0.2 0.889     NaN
+##  ---                                                                 
+## 254:    901  NaN      NaN    18.5    NaN  901   NaN 0.2   NaN     NaN
+## 255:   5788  NaN      NaN    19.0    NaN 5788   NaN 0.2   NaN     NaN
+## 256:    715 51.2 2.16e+09    17.2  11.77  715 0.982 0.2 0.882     NaN
+## 257:   4924  NaN      NaN    34.8    NaN 4924   NaN 0.2   NaN     NaN
+## 258:    490  NaN      NaN     NaN  17.27  490   NaN 0.2 0.827     NaN
+##      inc.psav incmult.p20 incmult.psav
+##   1:      NaN         NaN          NaN
+##   2:      NaN         NaN          NaN
+##   3:      NaN         NaN          NaN
+##   4:      NaN         NaN          NaN
+##   5:      NaN         NaN          NaN
+##  ---                                  
+## 254:      NaN         NaN          NaN
+## 255:      NaN         NaN          NaN
+## 256:      NaN         NaN          NaN
+## 257:      NaN         NaN          NaN
+## 258:      NaN         NaN          NaN</code></pre>
 <pre class="r"><code>##      Cumulative share of per capita income:
 inc2010[,incshare.p20 := dlnorm(p20, meanlog=log(mu), sdlog=log(sigma))]</code></pre>
 <pre><code>## Warning: NaNs produced</code></pre>
-<pre><code>##      iso2c                                        country year    income
-##   1:    1A                                     Arab World 2010 1.174e+12
-##   2:    1W                                          World 2010 4.742e+13
-##   3:    4E          East Asia &amp; Pacific (developing only) 2010 3.584e+12
-##   4:    7E        Europe &amp; Central Asia (developing only) 2010 1.006e+12
-##   5:    8S                                     South Asia 2010 1.164e+12
-##  ---                                                                    
-## 254:    ZG         Sub-Saharan Africa (all income levels) 2010 6.641e+11
-## 255:    ZJ  Latin America &amp; Caribbean (all income levels) 2010 2.863e+12
-## 256:    ZM                                         Zambia 2010 7.361e+09
-## 257:    ZQ Middle East &amp; North Africa (all income levels) 2010 1.471e+12
-## 258:    ZW                                       Zimbabwe 2010 6.142e+09
-##      inccap  gini    saving savrate savers     mu  sigma p20   psav
-##   1: 4310.9   NaN       NaN   34.60    NaN 4310.9    NaN 0.2    NaN
-##   2: 7561.7   NaN       NaN   23.41 22.430 7561.7    NaN 0.2 0.7757
-##   3: 2313.1   NaN       NaN   43.97 28.447 2313.1    NaN 0.2 0.7155
-##   4: 4104.5   NaN       NaN   18.96  6.982 4104.5    NaN 0.2 0.9302
-##   5:  839.7   NaN       NaN   30.30 11.091  839.7    NaN 0.2 0.8891
-##  ---                                                               
-## 254:  900.8   NaN       NaN   18.48    NaN  900.8    NaN 0.2    NaN
-## 255: 5788.2   NaN       NaN   19.05    NaN 5788.2    NaN 0.2    NaN
-## 256:  715.4 51.23 2.157e+09   17.17 11.766  715.4 0.9815 0.2 0.8823
-## 257: 4923.8   NaN       NaN   34.78    NaN 4923.8    NaN 0.2    NaN
-## 258:  490.0   NaN       NaN     NaN 17.268  490.0    NaN 0.2 0.8273
-##      inc.p20 inc.psav incmult.p20 incmult.psav incshare.p20
-##   1:     NaN      NaN         NaN          NaN          NaN
-##   2:     NaN      NaN         NaN          NaN          NaN
-##   3:     NaN      NaN         NaN          NaN          NaN
-##   4:     NaN      NaN         NaN          NaN          NaN
-##   5:     NaN      NaN         NaN          NaN          NaN
-##  ---                                                       
-## 254:     NaN      NaN         NaN          NaN          NaN
-## 255:     NaN      NaN         NaN          NaN          NaN
-## 256:     NaN      NaN         NaN          NaN          NaN
-## 257:     NaN      NaN         NaN          NaN          NaN
-## 258:     NaN      NaN         NaN          NaN          NaN</code></pre>
+<pre><code>##      iso2c                                        country year   income
+##   1:    1A                                     Arab World 2010 1.17e+12
+##   2:    1W                                          World 2010 4.74e+13
+##   3:    4E          East Asia &amp; Pacific (developing only) 2010 3.58e+12
+##   4:    7E        Europe &amp; Central Asia (developing only) 2010 1.01e+12
+##   5:    8S                                     South Asia 2010 1.16e+12
+##  ---                                                                   
+## 254:    ZG         Sub-Saharan Africa (all income levels) 2010 6.64e+11
+## 255:    ZJ  Latin America &amp; Caribbean (all income levels) 2010 2.86e+12
+## 256:    ZM                                         Zambia 2010 7.36e+09
+## 257:    ZQ Middle East &amp; North Africa (all income levels) 2010 1.47e+12
+## 258:    ZW                                       Zimbabwe 2010 6.14e+09
+##      inccap gini   saving savrate savers   mu sigma p20  psav inc.p20
+##   1:   4311  NaN      NaN    34.6    NaN 4311   NaN 0.2   NaN     NaN
+##   2:   7562  NaN      NaN    23.4  22.43 7562   NaN 0.2 0.776     NaN
+##   3:   2313  NaN      NaN    44.0  28.45 2313   NaN 0.2 0.716     NaN
+##   4:   4105  NaN      NaN    19.0   6.98 4105   NaN 0.2 0.930     NaN
+##   5:    840  NaN      NaN    30.3  11.09  840   NaN 0.2 0.889     NaN
+##  ---                                                                 
+## 254:    901  NaN      NaN    18.5    NaN  901   NaN 0.2   NaN     NaN
+## 255:   5788  NaN      NaN    19.0    NaN 5788   NaN 0.2   NaN     NaN
+## 256:    715 51.2 2.16e+09    17.2  11.77  715 0.982 0.2 0.882     NaN
+## 257:   4924  NaN      NaN    34.8    NaN 4924   NaN 0.2   NaN     NaN
+## 258:    490  NaN      NaN     NaN  17.27  490   NaN 0.2 0.827     NaN
+##      inc.psav incmult.p20 incmult.psav incshare.p20
+##   1:      NaN         NaN          NaN          NaN
+##   2:      NaN         NaN          NaN          NaN
+##   3:      NaN         NaN          NaN          NaN
+##   4:      NaN         NaN          NaN          NaN
+##   5:      NaN         NaN          NaN          NaN
+##  ---                                               
+## 254:      NaN         NaN          NaN          NaN
+## 255:      NaN         NaN          NaN          NaN
+## 256:      NaN         NaN          NaN          NaN
+## 257:      NaN         NaN          NaN          NaN
+## 258:      NaN         NaN          NaN          NaN</code></pre>
 <pre class="r"><code>inc2010[,incshare.psav := dlnorm(psav, meanlog=log(mu), sdlog=log(sigma))]</code></pre>
 <pre><code>## Warning: NaNs produced</code></pre>
-<pre><code>##      iso2c                                        country year    income
-##   1:    1A                                     Arab World 2010 1.174e+12
-##   2:    1W                                          World 2010 4.742e+13
-##   3:    4E          East Asia &amp; Pacific (developing only) 2010 3.584e+12
-##   4:    7E        Europe &amp; Central Asia (developing only) 2010 1.006e+12
-##   5:    8S                                     South Asia 2010 1.164e+12
-##  ---                                                                    
-## 254:    ZG         Sub-Saharan Africa (all income levels) 2010 6.641e+11
-## 255:    ZJ  Latin America &amp; Caribbean (all income levels) 2010 2.863e+12
-## 256:    ZM                                         Zambia 2010 7.361e+09
-## 257:    ZQ Middle East &amp; North Africa (all income levels) 2010 1.471e+12
-## 258:    ZW                                       Zimbabwe 2010 6.142e+09
-##      inccap  gini    saving savrate savers     mu  sigma p20   psav
-##   1: 4310.9   NaN       NaN   34.60    NaN 4310.9    NaN 0.2    NaN
-##   2: 7561.7   NaN       NaN   23.41 22.430 7561.7    NaN 0.2 0.7757
-##   3: 2313.1   NaN       NaN   43.97 28.447 2313.1    NaN 0.2 0.7155
-##   4: 4104.5   NaN       NaN   18.96  6.982 4104.5    NaN 0.2 0.9302
-##   5:  839.7   NaN       NaN   30.30 11.091  839.7    NaN 0.2 0.8891
-##  ---                                                               
-## 254:  900.8   NaN       NaN   18.48    NaN  900.8    NaN 0.2    NaN
-## 255: 5788.2   NaN       NaN   19.05    NaN 5788.2    NaN 0.2    NaN
-## 256:  715.4 51.23 2.157e+09   17.17 11.766  715.4 0.9815 0.2 0.8823
-## 257: 4923.8   NaN       NaN   34.78    NaN 4923.8    NaN 0.2    NaN
-## 258:  490.0   NaN       NaN     NaN 17.268  490.0    NaN 0.2 0.8273
-##      inc.p20 inc.psav incmult.p20 incmult.psav incshare.p20 incshare.psav
-##   1:     NaN      NaN         NaN          NaN          NaN           NaN
-##   2:     NaN      NaN         NaN          NaN          NaN           NaN
-##   3:     NaN      NaN         NaN          NaN          NaN           NaN
-##   4:     NaN      NaN         NaN          NaN          NaN           NaN
-##   5:     NaN      NaN         NaN          NaN          NaN           NaN
-##  ---                                                                     
-## 254:     NaN      NaN         NaN          NaN          NaN           NaN
-## 255:     NaN      NaN         NaN          NaN          NaN           NaN
-## 256:     NaN      NaN         NaN          NaN          NaN           NaN
-## 257:     NaN      NaN         NaN          NaN          NaN           NaN
-## 258:     NaN      NaN         NaN          NaN          NaN           NaN</code></pre>
+<pre><code>##      iso2c                                        country year   income
+##   1:    1A                                     Arab World 2010 1.17e+12
+##   2:    1W                                          World 2010 4.74e+13
+##   3:    4E          East Asia &amp; Pacific (developing only) 2010 3.58e+12
+##   4:    7E        Europe &amp; Central Asia (developing only) 2010 1.01e+12
+##   5:    8S                                     South Asia 2010 1.16e+12
+##  ---                                                                   
+## 254:    ZG         Sub-Saharan Africa (all income levels) 2010 6.64e+11
+## 255:    ZJ  Latin America &amp; Caribbean (all income levels) 2010 2.86e+12
+## 256:    ZM                                         Zambia 2010 7.36e+09
+## 257:    ZQ Middle East &amp; North Africa (all income levels) 2010 1.47e+12
+## 258:    ZW                                       Zimbabwe 2010 6.14e+09
+##      inccap gini   saving savrate savers   mu sigma p20  psav inc.p20
+##   1:   4311  NaN      NaN    34.6    NaN 4311   NaN 0.2   NaN     NaN
+##   2:   7562  NaN      NaN    23.4  22.43 7562   NaN 0.2 0.776     NaN
+##   3:   2313  NaN      NaN    44.0  28.45 2313   NaN 0.2 0.716     NaN
+##   4:   4105  NaN      NaN    19.0   6.98 4105   NaN 0.2 0.930     NaN
+##   5:    840  NaN      NaN    30.3  11.09  840   NaN 0.2 0.889     NaN
+##  ---                                                                 
+## 254:    901  NaN      NaN    18.5    NaN  901   NaN 0.2   NaN     NaN
+## 255:   5788  NaN      NaN    19.0    NaN 5788   NaN 0.2   NaN     NaN
+## 256:    715 51.2 2.16e+09    17.2  11.77  715 0.982 0.2 0.882     NaN
+## 257:   4924  NaN      NaN    34.8    NaN 4924   NaN 0.2   NaN     NaN
+## 258:    490  NaN      NaN     NaN  17.27  490   NaN 0.2 0.827     NaN
+##      inc.psav incmult.p20 incmult.psav incshare.p20 incshare.psav
+##   1:      NaN         NaN          NaN          NaN           NaN
+##   2:      NaN         NaN          NaN          NaN           NaN
+##   3:      NaN         NaN          NaN          NaN           NaN
+##   4:      NaN         NaN          NaN          NaN           NaN
+##   5:      NaN         NaN          NaN          NaN           NaN
+##  ---                                                             
+## 254:      NaN         NaN          NaN          NaN           NaN
+## 255:      NaN         NaN          NaN          NaN           NaN
+## 256:      NaN         NaN          NaN          NaN           NaN
+## 257:      NaN         NaN          NaN          NaN           NaN
+## 258:      NaN         NaN          NaN          NaN           NaN</code></pre>
 <pre class="r"><code>save(inc2010, file=&quot;modeled saving of finexcl.Rda&quot;)
 inc2010 &lt;- subset(inc2010, !is.na(gini))
 str(inc2010); summary(inc2010)</code></pre>
@@ -506,35 +762,35 @@ str(inc2010); summary(inc2010)</code></pre>
 ##      inccap           gini          saving             savrate     
 ##  Min.   :  159   Min.   :25.0   Min.   :-2.35e+09   Min.   :-14.9  
 ##  1st Qu.:  787   1st Qu.:33.8   1st Qu.: 1.13e+09   1st Qu.: 15.3  
-##  Median : 2261   Median :39.3   Median : 4.17e+09   Median : 19.9  
+##  Median : 2261   Median :39.3   Median : 4.17e+09   Median : 19.8  
 ##  Mean   : 7391   Mean   :40.5   Mean   : 6.71e+10   Mean   : 21.4  
 ##  3rd Qu.: 5907   3rd Qu.:45.9   3rd Qu.: 3.24e+10   3rd Qu.: 25.3  
 ##  Max.   :66520   Max.   :64.3   Max.   : 2.28e+12   Max.   : 76.2  
 ##                                 NA's   :8           NA's   :8      
-##      savers            mu            sigma            p20     
-##  Min.   : 0.29   Min.   :  159   Min.   :0.451   Min.   :0.2  
-##  1st Qu.: 5.42   1st Qu.:  787   1st Qu.:0.619   1st Qu.:0.2  
-##  Median :10.82   Median : 2261   Median :0.727   Median :0.2  
-##  Mean   :15.12   Mean   : 7391   Mean   :0.759   Mean   :0.2  
-##  3rd Qu.:19.03   3rd Qu.: 5907   3rd Qu.:0.864   3rd Qu.:0.2  
-##  Max.   :63.58   Max.   :66520   Max.   :1.303   Max.   :0.2  
-##  NA's   :16                                                   
-##       psav          inc.p20        inc.psav     incmult.p20  
-##  Min.   :0.364   Min.   : 510   Min.   : 674   Min.   :0.80  
-##  1st Qu.:0.810   1st Qu.:1473   1st Qu.:1630   1st Qu.:0.86  
-##  Median :0.892   Median :3023   Median :3164   Median :0.91  
-##  Mean   :0.849   Mean   :3369   Mean   :3681   Mean   :0.91  
-##  3rd Qu.:0.946   3rd Qu.:4157   3rd Qu.:5789   3rd Qu.:0.96  
-##  Max.   :0.997   Max.   :9375   Max.   :8142   Max.   :1.00  
-##  NA's   :16      NA's   :120    NA's   :123    NA's   :120   
-##   incmult.psav   incshare.p20 incshare.psav
-##  Min.   :1.00   Min.   :0     Min.   :0    
-##  1st Qu.:1.04   1st Qu.:0     1st Qu.:0    
-##  Median :1.11   Median :0     Median :0    
-##  Mean   :1.12   Mean   :0     Mean   :0    
-##  3rd Qu.:1.19   3rd Qu.:0     3rd Qu.:0    
-##  Max.   :1.39   Max.   :0     Max.   :0    
-##  NA's   :123    NA's   :120   NA's   :123</code></pre>
+##      savers           mu            sigma            p20     
+##  Min.   : 0.3   Min.   :  159   Min.   :0.451   Min.   :0.2  
+##  1st Qu.: 5.4   1st Qu.:  787   1st Qu.:0.619   1st Qu.:0.2  
+##  Median :10.8   Median : 2261   Median :0.727   Median :0.2  
+##  Mean   :15.1   Mean   : 7391   Mean   :0.759   Mean   :0.2  
+##  3rd Qu.:19.0   3rd Qu.: 5907   3rd Qu.:0.863   3rd Qu.:0.2  
+##  Max.   :63.6   Max.   :66520   Max.   :1.303   Max.   :0.2  
+##  NA's   :16                                                  
+##       psav         inc.p20        inc.psav     incmult.p20   incmult.psav
+##  Min.   :0.36   Min.   : 510   Min.   : 674   Min.   :0.8   Min.   :1.0  
+##  1st Qu.:0.81   1st Qu.:1473   1st Qu.:1630   1st Qu.:0.9   1st Qu.:1.0  
+##  Median :0.89   Median :3023   Median :3164   Median :0.9   Median :1.1  
+##  Mean   :0.85   Mean   :3369   Mean   :3681   Mean   :0.9   Mean   :1.1  
+##  3rd Qu.:0.95   3rd Qu.:4157   3rd Qu.:5789   3rd Qu.:1.0   3rd Qu.:1.2  
+##  Max.   :1.00   Max.   :9375   Max.   :8142   Max.   :1.0   Max.   :1.4  
+##  NA's   :16     NA's   :120    NA's   :123    NA's   :120   NA's   :123  
+##   incshare.p20 incshare.psav
+##  Min.   :0     Min.   :0    
+##  1st Qu.:0     1st Qu.:0    
+##  Median :0     Median :0    
+##  Mean   :0     Mean   :0    
+##  3rd Qu.:0     3rd Qu.:0    
+##  Max.   :0     Max.   :0    
+##  NA's   :120   NA's   :123</code></pre>
 </div>
 <div id="data" class="section level2">
 <h2>Data</h2>
@@ -616,29 +872,29 @@ str(inc2010); summary(inc2010)</code></pre>
 ##                                        Max.   :2012   Max.   : 5.45e+13  
 ##                                                       NA's   :1162       
 ##  NY.GNP.PCAP.CD   NY.GNS.ICTR.GN.ZS NY.GNS.ICTR.CD       SI.POV.GINI  
-##  Min.   :    70   Min.   :-21.5     Min.   :-2.37e+10   Min.   :24.2  
-##  1st Qu.:   990   1st Qu.: 15.4     1st Qu.: 8.21e+08   1st Qu.:33.5  
-##  Median :  3515   Median : 20.6     Median : 4.23e+09   Median :40.3  
-##  Mean   : 10784   Mean   : 21.8     Mean   : 7.67e+10   Mean   :41.6  
-##  3rd Qu.: 12460   3rd Qu.: 27.4     3rd Qu.: 3.71e+10   3rd Qu.:49.0  
-##  Max.   :186950   Max.   :137.5     Max.   : 4.20e+12   Max.   :69.2  
+##  Min.   :    70   Min.   :-22       Min.   :-2.37e+10   Min.   :24    
+##  1st Qu.:   990   1st Qu.: 15       1st Qu.: 8.21e+08   1st Qu.:33    
+##  Median :  3515   Median : 21       Median : 4.23e+09   Median :40    
+##  Mean   : 10784   Mean   : 22       Mean   : 7.67e+10   Mean   :42    
+##  3rd Qu.: 12460   3rd Qu.: 27       3rd Qu.: 3.71e+10   3rd Qu.:49    
+##  Max.   :186950   Max.   :137       Max.   : 4.20e+12   Max.   :69    
 ##  NA's   :477      NA's   :971       NA's   :1372        NA's   :2797  
 ##    WP11648.1        income             inccap            gini     
-##  Min.   : 0     Min.   :3.74e+07   Min.   :   159   Min.   :25.0  
-##  1st Qu.: 7     1st Qu.:4.28e+09   1st Qu.:  1093   1st Qu.:33.8  
-##  Median :14     Median :1.99e+10   Median :  3709   Median :39.3  
-##  Mean   :19     Mean   :1.39e+12   Mean   : 11353   Mean   :40.5  
-##  3rd Qu.:25     3rd Qu.:1.97e+11   3rd Qu.: 13785   3rd Qu.:45.9  
-##  Max.   :64     Max.   :4.74e+13   Max.   :120306   Max.   :64.3  
+##  Min.   : 0     Min.   :3.74e+07   Min.   :   159   Min.   :25    
+##  1st Qu.: 7     1st Qu.:4.28e+09   1st Qu.:  1093   1st Qu.:34    
+##  Median :14     Median :1.99e+10   Median :  3709   Median :39    
+##  Mean   :19     Mean   :1.39e+12   Mean   : 11353   Mean   :41    
+##  3rd Qu.:25     3rd Qu.:1.97e+11   3rd Qu.: 13785   3rd Qu.:46    
+##  Max.   :64     Max.   :4.74e+13   Max.   :120306   Max.   :64    
 ##  NA's   :3191   NA's   :378        NA's   :326      NA's   :1561  
-##      saving             savrate          savers    
-##  Min.   :-2.35e+09   Min.   :-14.9   Min.   : 0.1  
-##  1st Qu.: 7.54e+08   1st Qu.: 15.7   1st Qu.: 6.4  
-##  Median : 4.15e+09   Median : 20.5   Median :13.6  
-##  Mean   : 6.98e+10   Mean   : 22.2   Mean   :18.6  
-##  3rd Qu.: 3.41e+10   3rd Qu.: 27.7   3rd Qu.:25.4  
-##  Max.   : 2.28e+12   Max.   : 76.2   Max.   :63.6  
-##  NA's   :1132        NA's   :703     NA's   :1235</code></pre>
+##      saving             savrate        savers    
+##  Min.   :-2.35e+09   Min.   :-15   Min.   : 0    
+##  1st Qu.: 7.54e+08   1st Qu.: 16   1st Qu.: 6    
+##  Median : 4.15e+09   Median : 20   Median :14    
+##  Mean   : 6.98e+10   Mean   : 22   Mean   :19    
+##  3rd Qu.: 3.41e+10   3rd Qu.: 28   3rd Qu.:25    
+##  Max.   : 2.28e+12   Max.   : 76   Max.   :64    
+##  NA's   :1132        NA's   :703   NA's   :1235</code></pre>
 <p><span class="math">\(\square\)</span></p>
 </div>
 <div id="bibliography" class="section level2">

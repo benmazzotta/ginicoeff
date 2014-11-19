@@ -1,0 +1,59 @@
+---
+title: "Simulating quantile distributions"
+author: "Ben Mazzotta"
+date: "Wednesday, November 19, 2014"
+output: pdf_document
+header-includes: 
+  - \usepackage{charter}
+  - \usepackage{euler}
+---
+
+This is a proof of concept document for simulating quantile shares of a random variable.
+
+**Problem.** What share of X do the bottom two quintiles possess?
+
+```{r incomeshare}
+set.seed(1213)
+t.mu <- 8
+t.sigma <- 2
+qlnorm(.6, t.mu, t.sigma)
+t.draw <- rlnorm(1e6, t.mu, t.sigma)
+str(t.draw)
+t.under40 <- subset(t.draw, t.draw<qlnorm(.40, t.mu, t.sigma))
+sum(t.draw)
+sum(t.under40)
+sum(t.under40) / sum(t.draw)
+
+```
+
+
+Replicate for various sample sizes.
+
+```{r listofincomeshares}
+# ## Declare a list of quantiles to cutoff
+# t.quant = c(.2, .4, .6, .8)
+
+## Declare a list of sample sizes
+t.sample = c(1e4, 1e5, 1e6)
+
+## Simulate the distribution with three different sample sizes; save to list
+t.draw2 <- lapply(t.sample, function(x) rlnorm(x, t.mu, t.sigma))
+## Make a data frame of summary statistics
+##      Column 1: sample size
+t.df <- data.frame(t.sample)
+##      Column 2: sum of X
+t.df$sum <- sapply(t.draw2, sum)
+##      Column 3: sum of X from bottom two deciles
+t.df$sum40 <- sapply(t.draw2, function(x) sum(subset(x, x < qlnorm(.4, t.mu, t.sigma))))
+##      Column 4: share of X belonging to bottom two deciles.
+t.df$share40 <- t.df$sum40 / t.df$sum
+
+cat("The bottom two quintiles of X are", t.df[3,4]*100, "% of the total.")
+
+```
+
+
+
+---
+\footnotesize Ben Mazzotta works on the [Cost of Cash](http://fletcher.tufts.edu/costofcash) project at the [Institute for Business in the Global Context](http://fletcher.tufts.edu/ibgc). Contact: [benjamin.mazzotta@tufts.edu](mailto:benjamin.mazzotta@tufts.edu) \quad +1.617.627.4561 \quad 160 Packard Ave, Medford MA 02155. \par
+

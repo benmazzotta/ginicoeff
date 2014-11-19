@@ -1,0 +1,39 @@
+---
+title: Bad Code
+date: 19 November 2014
+author: Ben Mazzotta
+output: pdf_document
+---
+
+
+## Errata from early lognormal calculations.
+
+Let's assume that the Kemp-Benedict formula is correct. Based on that ... 
+
+```{r giniquantiles, fig.height=8, fig.width=4.5}
+## Calculate mean and variance
+##        Sufficient to model the distribution
+inc2010[,mu:=inccap]
+inc2010[,sigma:=sqrt(2)*qnorm((gini/100+1)/2)]
+
+## What are some percentiles worth knowing? 
+inc2010[,p20 :=.20]  ## 20th percentile
+inc2010[,psav := 1- savers/100]  ## financially excluded
+
+## What is the per capita income cutoff for the bottom quintile? 
+##                          ... for financially excluded?
+inc2010[,inc.p20 := qlnorm(p20, meanlog=log(mu), sdlog=log(sigma))]
+inc2010[,inc.psav := qlnorm(psav, meanlog=log(mu), sdlog=log(sigma))]
+
+##      Cutoffs a multiple of per capita income:
+inc2010[,incmult.p20 := inc.p20/inccap]
+inc2010[,incmult.psav := inc.psav/inccap]
+
+##      Cumulative share of per capita income:
+inc2010[,incshare.p20 := dlnorm(p20, meanlog=log(mu), sdlog=log(sigma))]
+inc2010[,incshare.psav := dlnorm(psav, meanlog=log(mu), sdlog=log(sigma))]
+
+save(inc2010, file="modeled saving of finexcl.Rda")
+inc2010 <- subset(inc2010, !is.na(gini))
+str(inc2010); summary(inc2010)
+```
